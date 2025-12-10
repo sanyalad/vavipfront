@@ -41,8 +41,8 @@
 .primaryCta {
   padding: 12px 16px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #c78c4b, #9a632c);
-  color: #fff;
+  background: linear-gradient(135deg, #d8d8d8, #8f8f8f);
+  color: #0a0a0a;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-decoration: none;
@@ -94,7 +94,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 20% 20%, rgba(199, 140, 75, 0.12), transparent 42%);
+  background: radial-gradient(circle at 20% 20%, rgba(192, 192, 192, 0.14), transparent 42%);
   opacity: 0;
   transition: opacity var(--transition-fast);
   pointer-events: none;
@@ -102,7 +102,7 @@
 
 .card:hover {
   transform: translateY(-4px);
-  border-color: rgba(199, 140, 75, 0.32);
+  border-color: rgba(192, 192, 192, 0.3);
   box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
 }
 
@@ -123,8 +123,8 @@
 .badge {
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(199, 140, 75, 0.2);
-  color: #f1c48b;
+  background: rgba(192, 192, 192, 0.16);
+  color: #f1f1f1;
   font-weight: 700;
   font-size: 0.78rem;
 }
@@ -149,7 +149,7 @@
 .cardLink {
   display: inline-flex;
   margin-top: var(--spacing-sm);
-  color: #f1c48b;
+  color: #e4e4e4;
   letter-spacing: 0.05em;
   text-decoration: none;
   position: relative;
@@ -162,7 +162,7 @@
   bottom: -4px;
   width: 100%;
   height: 2px;
-  background: linear-gradient(to right, transparent, #f1c48b 50%, transparent);
+  background: linear-gradient(to right, transparent, #e4e4e4 50%, transparent);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform var(--transition-fast);

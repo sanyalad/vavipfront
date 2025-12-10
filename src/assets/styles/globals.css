@@ -22,9 +22,9 @@
   --focus-outline: 2px solid #9ec1ff;
   --focus-offset: 2px;
 
-  /* Цвета бренда и hover‑эффекты (теплый акцент) */
-  --hover-bg: rgba(199, 140, 75, 0.28);
-  --hover-stroke: #c78c4b;
+  /* Цвета бренда и hover‑эффекты (серебро/графит) */
+  --hover-bg: rgba(192, 192, 192, 0.18);
+  --hover-stroke: #c0c0c0;
   --phone-color: #fff;
 
   /* Основные цвета */
