@@ -15,7 +15,7 @@ const videoSections = [
     title: 'УЗЕЛ ВВОДА',
     videoSrc: '/videos/background1.webm',
     posterSrc: undefined,
-    link: '/services/uzel-vvoda',
+    link: '/catalog/uzel-vvoda',
   },
   {
     id: 'bim',

@@ -9,7 +9,7 @@ import styles from './Header.module.css'
 const menuItems = [
   { id: 'contacts', label: 'КОНТАКТЫ', href: '/contacts' },
   { id: 'about', label: 'О КОМПАНИИ', href: '/about' },
-  { id: 'node', label: 'УЗЕЛ ВВОДА', href: '/services/uzel-vvoda' },
+  { id: 'node', label: 'УЗЕЛ ВВОДА', href: '/catalog/uzel-vvoda' },
   { id: 'bim', label: 'ПРОЕКТИРОВАНИЕ BIM', href: '/services/bim' },
   { id: 'montage', label: 'МОНТАЖ', href: '/services/montazh' },
   { id: 'shop', label: 'МАГАЗИН', href: '/shop' },
