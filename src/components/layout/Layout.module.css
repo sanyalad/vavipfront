@@ -1,0 +1,14 @@
+/* Layout container */
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+/* Main content area */
+.main {
+  flex: 1;
+  width: 100%;
+  /* Allow main content to take full height without fixed header interference */
+}

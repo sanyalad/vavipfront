@@ -1,0 +1,143 @@
+/* ===== Footer ===== */
+.footerContent {
+  padding: 60px 40px 40px;
+  background-color: var(--color-bg-secondary);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  margin-bottom: 40px;
+}
+
+.columns > div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.columns strong {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.columns a {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: color var(--transition-fast);
+}
+
+.columns a:hover {
+  color: var(--color-text-primary);
+}
+
+/* ===== Divider ===== */
+.footerDivider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(to right, transparent 0%, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0.2) 80%, transparent 100%);
+  margin: 30px 0;
+}
+
+/* ===== Bottom section ===== */
+.footerBottomWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.footerBottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  width: 100%;
+}
+
+.verticalTextFooter img {
+  height: 24px;
+  opacity: 0.8;
+}
+
+/* ===== Social icons ===== */
+.socialIcons {
+  display: flex;
+  gap: 24px;
+}
+
+.socialIcon {
+  width: 64px;
+  height: 64px;
+  border: 2px solid rgba(255,255,255,.72);
+  border-radius: 50%;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.socialIcon:hover {
+  background: rgba(255,255,255,.14);
+  border-color: rgba(255,255,255,.90);
+  transform: translateY(-1px);
+}
+
+.socialIcon img {
+  width: 28px;
+  height: 28px;
+  display: block;
+  opacity: .98;
+  filter: brightness(0) invert(1) saturate(0) contrast(1.1);
+  transition: filter var(--transition-fast), opacity var(--transition-fast);
+}
+
+.socialIcon:hover img {
+  filter: brightness(0) invert(1) saturate(0) contrast(1.2);
+}
+
+/* ===== Copyright ===== */
+.copyrightText {
+  font-size: 0.9rem;
+  text-align: center;
+  color: rgba(255,255,255,0.6);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .footerContent {
+    padding: 40px 20px 30px;
+  }
+
+  .columns {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .footerBottom {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .socialIcons {
+    gap: 16px;
+  }
+
+  .socialIcon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .socialIcon img {
+    width: 20px;
+    height: 20px;
+  }
+}

@@ -1,0 +1,97 @@
+/* ===== Home page ===== */
+.home {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+/* ===== Video Sections Wrapper ===== */
+.videoSectionsWrapper {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
+  --peek-height: 0px;
+  overflow: hidden;
+  touch-action: none;
+  isolation: isolate;
+  border: none;
+  outline: none;
+}
+
+.released {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+  /* Возвращаем нативный скролл, когда отпустили */
+  touch-action: auto;
+}
+
+.released .videoSection {
+  position: relative;
+  transform: none !important;
+  opacity: 1 !important;
+  pointer-events: auto;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
+  z-index: 1;
+}
+
+/* ===== Mobile Strip ===== */
+.mobileStrip {
+  display: none;
+}
+
+@media (max-width: 719px) {
+  .mobileStrip {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    gap: 10px;
+    justify-content: space-evenly;
+    align-items: center;
+    padding: 10px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    z-index: 1200;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mobileNavItem {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 8px 6px;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+  }
+
+  .mobileNavItem:hover {
+    color: #fff;
+  }
+}
+
+/* ===== Каталог и футер после стека ===== */
+.afterStack {
+  position: relative;
+  background: var(--color-bg);
+  isolation: isolate;
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .videoSectionsWrapper section {
+    will-change: auto;
+  }
+}

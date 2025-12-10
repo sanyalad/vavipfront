@@ -1,0 +1,110 @@
+/* ===== Intro Loader Container ===== */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-loader);
+  background: var(--color-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: all;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+/* Скрытие после завершения */
+.loader.hidden {
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* ===== Логотип ===== */
+.logo {
+  position: relative;
+  z-index: 2;
+  width: clamp(120px, 20vw, 200px);
+  height: auto;
+  opacity: 0;
+  transform: scale(0.9);
+  animation: logoAppear 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes logoAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Затухание логотипа */
+.fadeLogo .logo {
+  animation: logoFade 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes logoFade {
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* ===== Занавес ===== */
+.curtain {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+  z-index: 1;
+  transform: translateY(0);
+}
+
+/* Анимация ухода занавеса вверх */
+.curtainUp {
+  opacity: 0;
+}
+
+.curtainUp .curtain {
+  animation: curtainUp 1s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+}
+
+@keyframes curtainUp {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .logo,
+  .curtain {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .logo {
+    opacity: 1;
+    transform: scale(1);
+  }
+  
+  .loader {
+    display: none;
+  }
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  .logo {
+    width: clamp(100px, 30vw, 150px);
+  }
+}
