@@ -65,16 +65,6 @@ export default function HomePage() {
   const [isFirstVideoReady, setIsFirstVideoReady] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
 
-  // На мобильных сразу включаем нативный скролл (кастомный скролл дергается)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const isMobileViewport = window.matchMedia('(max-width: 900px)').matches
-    if (isMobileViewport) {
-      setIsReleased(true)
-      handleScrollLock(false)
-    }
-  }, [handleScrollLock])
-
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
     [lastSlideIndex],
@@ -113,6 +103,16 @@ export default function HomePage() {
       document.body.classList.remove('spa-scroll-lock')
     }
   }, [isFirstVideoReady])
+
+  // На мобильных сразу включаем нативный скролл (кастомный скролл дергается)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isMobileViewport = window.matchMedia('(max-width: 900px)').matches
+    if (isMobileViewport) {
+      setIsReleased(true)
+      handleScrollLock(false)
+    }
+  }, [handleScrollLock])
 
   const stopAnimationTimer = useCallback(() => {
     if (animationTimerRef.current) {
