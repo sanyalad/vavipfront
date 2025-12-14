@@ -3,16 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { useUIStore } from '@/store/uiStore'
+import { uzelCategories } from '@/data/uzelCatalog'
 import styles from './SearchOverlay.module.css'
-
-const quickTerms = ['чайник', 'термокружка', 'массажер', 'утюг']
-
-const quickCategories = [
-  { label: 'Идеи подарков', href: '/shop?category=gift' },
-  { label: 'Кухня', href: '/shop?category=kitchen' },
-  { label: 'Красота и здоровье', href: '/shop?category=beauty' },
-  { label: 'Новинки', href: '/shop?category=new' },
-]
 
 const demoCards = [
   { title: 'Узел ввода V01', price: '9 т.р.', href: '/shop/product/v01-meter', tag: 'Новинка' },
@@ -95,31 +87,12 @@ export default function SearchOverlay() {
             <div className={styles.body}>
               <aside className={styles.left}>
                 <div className={styles.block}>
-                  <div className={styles.blockTitle}>ЧАСТО ИЩУТ</div>
-                  <ul className={styles.list}>
-                    {quickTerms.map((t) => (
-                      <li key={t}>
-                        <button
-                          type="button"
-                          className={styles.term}
-                          onClick={() => setQuery(t)}
-                        >
-                          {t}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className={styles.divider} />
-
-                <div className={styles.block}>
                   <div className={styles.blockTitle}>КАТЕГОРИИ</div>
                   <ul className={styles.list}>
-                    {quickCategories.map((c) => (
-                      <li key={c.label}>
-                        <Link to={c.href} className={styles.cat} onClick={closeSearch}>
-                          {c.label}
+                    {uzelCategories.map((c) => (
+                      <li key={c.slug}>
+                        <Link to={`/catalog/uzel-vvoda/${c.slug}`} className={styles.cat} onClick={closeSearch}>
+                          {c.title}
                         </Link>
                       </li>
                     ))}
