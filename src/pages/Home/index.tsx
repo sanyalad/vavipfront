@@ -70,6 +70,7 @@ export default function HomePage() {
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
+  const lastWheelSampleTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -326,16 +327,20 @@ export default function HomePage() {
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
 
     // #region agent log
-    if (isLikelyTrackpad) {
-      dbgLog('T1', 'wheel(trackpad) sample', {
+    // Throttled: log at most once per ~120ms to avoid spam.
+    if ((now - (lastWheelSampleTsRef.current || 0)) > 120) {
+      lastWheelSampleTsRef.current = now
+      dbgLog('T0', 'wheel sample', {
         activeIndex,
         incomingIndex,
         isAnimatingRef: isAnimatingRef.current,
         gestureLocked: gestureLockedRef.current,
+        deltaMode: event.deltaMode,
         deltaY,
         absDelta,
         absDeltaClamped,
         wheelDt,
+        isLikelyTrackpad,
         progress: gestureProgressRef.current,
         dir: gestureDirectionRef.current,
         footerProgress: footerProgressRef.current,
@@ -437,6 +442,16 @@ export default function HomePage() {
     // Mouse wheel: переключаемся сразу с 1 тика (перфекционистично и без "накопления").
     // Trackpad остаётся "follow until release".
     if (!isLikelyTrackpad) {
+      // #region agent log
+      dbgLog('T1', 'wheel classified as mouse: immediate scrollToIndex', {
+        activeIndex,
+        incomingIndex,
+        dir,
+        deltaMode: event.deltaMode,
+        deltaY,
+        wheelDt,
+      })
+      // #endregion
       resetGesture()
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       scrollToIndex(nextIndex)
