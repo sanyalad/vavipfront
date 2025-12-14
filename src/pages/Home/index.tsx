@@ -94,7 +94,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-pre',
+        runId: 'trackpad-v2',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -828,6 +828,13 @@ export default function HomePage() {
 
   // Header height variable + body scroll lock
   useEffect(() => {
+    // #region agent log
+    tpLog('TP0', 'home mount marker', {
+      v: 'trackpad-v2',
+      path: location.pathname,
+      hash: location.hash || '',
+    })
+    // #endregion
     prefersReducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const setHeaderHeight = () => {
