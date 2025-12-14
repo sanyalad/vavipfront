@@ -282,7 +282,9 @@ body.dropdown-scroll-lock {
 body.footer-drawer-lock #main-header,
 body.dropdown-scroll-lock #main-header,
 body.spa-scroll-lock #main-header {
-  right: var(--scrollbar-gap) !important;
+  /* Inset shorthand on header can be finicky; setting width is more stable across browsers */
+  width: calc(100% - var(--scrollbar-gap)) !important;
+  right: auto !important;
 }
 
 /* ===== Reduced motion ===== */

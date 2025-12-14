@@ -792,6 +792,7 @@ export default function HomePage() {
       <div
         className={styles.footerBackdrop}
         data-visible={footerProgress > 0.02 ? 'true' : 'false'}
+        data-gesture={isGesturing ? 'true' : 'false'}
         style={{ ['--footer-progress' as string]: String(footerProgress) }}
         onClick={closeFooter}
         aria-hidden="true"
@@ -800,6 +801,7 @@ export default function HomePage() {
         ref={footerDrawerRef}
         className={styles.footerDrawer}
         data-visible={footerProgress > 0.02 ? 'true' : 'false'}
+        data-gesture={isGesturing ? 'true' : 'false'}
         style={{ ['--footer-progress' as string]: String(footerProgress) }}
         onClick={(e) => e.stopPropagation()}
       >

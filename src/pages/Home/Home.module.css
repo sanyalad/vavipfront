@@ -102,6 +102,10 @@
   pointer-events: auto;
 }
 
+.footerBackdrop[data-gesture="true"] {
+  transition: none;
+}
+
 .footerDrawer {
   position: fixed;
   left: 0;
@@ -111,8 +115,8 @@
   /* Client request: drawer height is always 40% of viewport */
   height: 40vh;
   max-height: 40vh;
-  transform: translateY(calc((1 - var(--footer-progress, 0)) * 100%));
-  transition: transform var(--transition-medium);
+  transform: translate3d(0, calc((1 - var(--footer-progress, 0)) * 100%), 0);
+  transition: transform 520ms cubic-bezier(0.23, 0.9, 0.15, 1);
   background: var(--color-bg);
   border-top: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.65);
@@ -122,10 +126,15 @@
   pointer-events: none;
   border-radius: 0;
   border: none;
+  will-change: transform;
 }
 
 .footerDrawer[data-visible="true"] {
   pointer-events: auto;
+}
+
+.footerDrawer[data-gesture="true"] {
+  transition: none;
 }
 
 @media (max-width: 900px) {
