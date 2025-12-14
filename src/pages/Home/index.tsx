@@ -54,6 +54,8 @@ const TRACKPAD_DELTA_CUTOFF = 85
 // Trackpad vs mouse: treat a burst of wheel events as trackpad-like even if deltas are large.
 // This prevents "one tick = one full section" on touchpads and avoids skipping on fast scroll.
 const TRACKPAD_STREAM_CUTOFF_MS = 180
+// Trackpads can emit tiny deltas from slight finger jitter; ignore those to avoid "micro-moves" + snap-back glitches.
+const TRACKPAD_START_DELTA_PX = 6
 // Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
 const MOUSE_WHEEL_RANGE = 320
 
@@ -359,6 +361,11 @@ export default function HomePage() {
     const absDelta = Math.abs(deltaY)
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
+
+    // Ignore tiny trackpad jitters when no gesture is in progress (reduces "double movement" feel).
+    if (isLikelyTrackpad && !gestureDirectionRef.current && absDelta < TRACKPAD_START_DELTA_PX) {
+      return
+    }
 
     // #region agent log
     // Trackpad-only sampling: helps detect misclassification (mouse vs trackpad) and jitter bursts.
