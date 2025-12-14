@@ -104,9 +104,9 @@
 
 .footerDrawer {
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1260;
   /* Let the drawer size to content; cap it to a reasonable max-height */
   height: auto;
@@ -118,8 +118,8 @@
   box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.65);
   overflow: auto;
   pointer-events: none;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 0;
+  border: none;
 }
 
 .footerDrawer[data-visible="true"] {
@@ -130,10 +130,10 @@
   .footerDrawer {
     height: auto;
     max-height: min(86vh, 760px);
-    left: 12px;
-    right: 12px;
-    bottom: 10px;
-    border-radius: 18px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
   }
 }
 

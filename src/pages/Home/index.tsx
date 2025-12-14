@@ -61,6 +61,7 @@ export default function HomePage() {
   const footerDrawerRef = useRef<HTMLDivElement | null>(null)
   const touchStartY = useRef(0)
   const animationTimerRef = useRef<number | null>(null)
+  const isAnimatingRef = useRef(false)
   const gestureTimerRef = useRef<number | null>(null)
   const finalizeTimerRef = useRef<number | null>(null)
   const gestureProgressRef = useRef(0)
@@ -90,6 +91,7 @@ export default function HomePage() {
       window.clearTimeout(animationTimerRef.current)
       animationTimerRef.current = null
     }
+    isAnimatingRef.current = false
   }, [])
 
   const stopGestureTimer = useCallback(() => {
@@ -160,11 +162,12 @@ export default function HomePage() {
       closeFooter()
     }
     const safeIndex = clampIndex(nextIndex)
-    if (safeIndex === activeIndex || isAnimating) return
+    if (safeIndex === activeIndex || isAnimatingRef.current) return
 
     const nextDirection = safeIndex > activeIndex ? 'next' : 'prev'
 
     stopAnimationTimer()
+    isAnimatingRef.current = true
     // Make sure we exit gesture mode before the commit animation
     setIsGesturing(false)
     setFromIndex(activeIndex)
@@ -177,13 +180,14 @@ export default function HomePage() {
       setActiveIndex(safeIndex)
       setIncomingIndex(null)
       setIsAnimating(false)
+      isAnimatingRef.current = false
       setDirection(null)
       animationTimerRef.current = null
     }, timeout)
-  }, [activeIndex, clampIndex, closeFooter, isAnimating, isFooterOpen, stopAnimationTimer])
+  }, [activeIndex, clampIndex, closeFooter, isFooterOpen, stopAnimationTimer])
 
   const finalizeGesture = useCallback(() => {
-    if (isAnimating) return
+    if (isAnimatingRef.current) return
     const dir = gestureDirectionRef.current
     if (!dir) {
       resetGesture()
@@ -310,8 +314,8 @@ export default function HomePage() {
       }
     }
 
-    // После возврата из каталога убеждаемся, что мы не в состоянии анимации
-    if (isAnimating) {
+    // Жесткий лок: пока идет анимация — не принимаем новые wheel события
+    if (isAnimatingRef.current) {
       event.preventDefault()
       return
     }
@@ -378,7 +382,6 @@ export default function HomePage() {
     clampIndex,
     closeFooter,
     finalizeGesture,
-    isAnimating,
     isFooterOpen,
     lastSlideIndex,
     openFooter,
@@ -395,16 +398,16 @@ export default function HomePage() {
   const handleTouchStart = useCallback((event: TouchEvent) => {
     if (prefersReducedMotion.current) return
     if (document.body.classList.contains('dropdown-scroll-lock')) return
-    if (isAnimating) return
+    if (isAnimatingRef.current) return
     gestureLockedRef.current = false
     touchStartY.current = event.touches[0]?.clientY ?? 0
     resetGesture()
-  }, [isAnimating, prefersReducedMotion, resetGesture])
+  }, [prefersReducedMotion, resetGesture])
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
     if (prefersReducedMotion.current) return
     if (document.body.classList.contains('dropdown-scroll-lock')) return
-    if (isAnimating) return
+    if (isAnimatingRef.current) return
     if (gestureLockedRef.current) return
 
     const y = event.touches[0]?.clientY ?? 0
@@ -470,7 +473,7 @@ export default function HomePage() {
 
   const handleTouchEnd = useCallback(() => {
     if (prefersReducedMotion.current) return
-    if (isAnimating) return
+    if (isAnimatingRef.current) return
     // Touch: commit/rollback only on release
     gestureLockedRef.current = false
     if (activeIndex === lastSlideIndex) {
@@ -486,11 +489,11 @@ export default function HomePage() {
       return
     }
     finalizeGesture()
-  }, [activeIndex, closeFooter, finalizeGesture, isAnimating, isFooterOpen, lastSlideIndex, openFooter])
+  }, [activeIndex, closeFooter, finalizeGesture, isFooterOpen, lastSlideIndex, openFooter])
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (document.body.classList.contains('dropdown-scroll-lock')) return
-    if (isAnimating) return
+    if (isAnimatingRef.current) return
     if (event.key === 'ArrowDown' || event.key === 'PageDown') {
       if (activeIndex === lastSlideIndex) {
         event.preventDefault()
@@ -514,7 +517,7 @@ export default function HomePage() {
       event.preventDefault()
       scrollToIndex(activeIndex - 1)
     }
-  }, [activeIndex, closeFooter, isAnimating, isFooterOpen, lastSlideIndex, openFooter, scrollToIndex])
+  }, [activeIndex, closeFooter, isFooterOpen, lastSlideIndex, openFooter, scrollToIndex])
 
   // Wheel + touch listeners on window to avoid native scroll дергания
   useEffect(() => {
