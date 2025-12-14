@@ -86,9 +86,12 @@ export default function HomePage() {
 
   // #region agent log
   const dbgLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    // Use no-cors + text/plain to avoid CORS preflight blocking logs in browsers.
+    // (We only need the request to reach the local ingest server; we don't read the response.)
     fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
         runId: 'pre-fix',
@@ -185,11 +188,25 @@ export default function HomePage() {
   }, [])
 
   const openFooter = useCallback(() => {
+    // #region agent log
+    dbgLog('F1', 'openFooter()', {
+      activeIndex,
+      footerProgress: footerProgressRef.current,
+      isFooterOpen,
+    })
+    // #endregion
     setIsFooterOpen(true)
     setFooterProgressSafe(1)
   }, [setFooterProgressSafe])
 
   const closeFooter = useCallback(() => {
+    // #region agent log
+    dbgLog('F1', 'closeFooter()', {
+      activeIndex,
+      footerProgress: footerProgressRef.current,
+      isFooterOpen,
+    })
+    // #endregion
     setIsFooterOpen(false)
     setFooterProgressSafe(0)
   }, [setFooterProgressSafe])
@@ -887,8 +904,41 @@ export default function HomePage() {
   // without necessarily locking the whole page scroll.
   useEffect(() => {
     const isActive = footerProgress > 0.02
+    // #region agent log
+    {
+      const headerEl = document.getElementById('main-header')
+      const headerRect = headerEl?.getBoundingClientRect()
+      dbgLog('F2', 'footer-drawer-active BEFORE toggle', {
+        footerProgress,
+        isActive,
+        bodyClass: document.body.className,
+        headerWidth: headerRect?.width,
+        headerLeft: headerRect?.left,
+      })
+    }
+    // #endregion
     if (isActive) document.body.classList.add('footer-drawer-active')
     else document.body.classList.remove('footer-drawer-active')
+    // #region agent log
+    requestAnimationFrame(() => {
+      const headerEl = document.getElementById('main-header')
+      const headerRect = headerEl?.getBoundingClientRect()
+      const drawerEl = footerDrawerRef.current
+      const drawerRect = drawerEl?.getBoundingClientRect()
+      const linksEl = drawerEl?.querySelector('[aria-label="Ссылки"]') as HTMLElement | null
+      dbgLog('F2', 'footer-drawer-active AFTER toggle (rAF)', {
+        footerProgress,
+        bodyClass: document.body.className,
+        headerWidth: headerRect?.width,
+        headerLeft: headerRect?.left,
+        drawerHeight: drawerRect?.height ?? null,
+        drawerVisible: drawerEl?.getAttribute('data-visible') ?? null,
+        linksClientHeight: linksEl?.clientHeight ?? null,
+        linksScrollHeight: linksEl?.scrollHeight ?? null,
+        linksScrollTop: linksEl?.scrollTop ?? null,
+      })
+    })
+    // #endregion
     return () => {
       document.body.classList.remove('footer-drawer-active')
     }
