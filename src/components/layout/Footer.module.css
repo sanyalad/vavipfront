@@ -115,6 +115,36 @@
   justify-content: space-between;
 }
 
+/* ===== Drawer mode (Home page overlay) ===== */
+:global(body.footer-drawer-active) .inner {
+  /* Align with header phone number axis:
+     header has padding 30px; phone is after location icon (22px) + gap (28px) */
+  padding-left: calc(30px + 22px + 28px);
+  padding-right: 30px;
+  padding-top: 24px;
+  padding-bottom: 16px;
+
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:global(body.footer-drawer-active) .top {
+  flex: 1;
+  overflow: auto;
+  padding-right: 6px; /* keep scrollbar off the text a bit */
+}
+
+:global(body.footer-drawer-active) .divider {
+  margin-top: 14px;
+}
+
+:global(body.footer-drawer-active) .bottom {
+  margin-top: 0;
+  padding-top: 14px;
+}
+
 .copy {
   font-size: 12px;
   letter-spacing: 0.14em;
@@ -140,5 +170,12 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 18px;
+  }
+
+  :global(body.footer-drawer-active) .inner {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 18px;
+    padding-bottom: 14px;
   }
 }

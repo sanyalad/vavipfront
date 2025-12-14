@@ -691,6 +691,17 @@ export default function HomePage() {
     }
   }, [isFooterOpen])
 
+  // Footer drawer can be partially opened during gesture. Use a separate class for styling/alignment
+  // without necessarily locking the whole page scroll.
+  useEffect(() => {
+    const isActive = footerProgress > 0.02
+    if (isActive) document.body.classList.add('footer-drawer-active')
+    else document.body.classList.remove('footer-drawer-active')
+    return () => {
+      document.body.classList.remove('footer-drawer-active')
+    }
+  }, [footerProgress])
+
   // Во время анимации:
   // При скролле вниз: fromIndex -> prev (остается), activeIndex -> next (выезжает снизу)
   // При скролле вверх: activeIndex -> prev (выезжает сверху), fromIndex -> next (уходит вниз)
