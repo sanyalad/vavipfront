@@ -235,12 +235,14 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     return () => observer.disconnect()
   }, [primeVideo])
 
-  // Preload next video using link rel="preload" when current is active or visible
+  // Preload next video using link rel="preload".
+  // IMPORTANT: avoid doing this during long trackpad gestures (isNext/isPrev), because it can trigger
+  // aggressive network/decoding work and make trackpad scrolling feel "heavy".
   useEffect(() => {
     if (!nextVideoSrc || isLast) return
     
-    // Preload if active, next, or prev (visible in viewport)
-    if (!isActive && !isNext && !isPrev) return
+    // Preload only when truly active (short + predictable), not while gesture-following.
+    if (!isActive) return
 
     // Use link rel="preload" instead of hidden DOM elements (more efficient)
     const webmLink = document.createElement('link')
@@ -248,7 +250,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     webmLink.as = 'video'
     webmLink.href = nextVideoSrc
     webmLink.type = 'video/webm'
-    webmLink.setAttribute('fetchpriority', 'high')
+    webmLink.setAttribute('fetchpriority', 'low')
     document.head.appendChild(webmLink)
     
     const mp4Link = document.createElement('link')
@@ -256,7 +258,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     mp4Link.as = 'video'
     mp4Link.href = nextVideoSrc.replace('.webm', '.mp4')
     mp4Link.type = 'video/mp4'
-    mp4Link.setAttribute('fetchpriority', 'high')
+    mp4Link.setAttribute('fetchpriority', 'low')
     document.head.appendChild(mp4Link)
 
     // Store references for cleanup
@@ -275,7 +277,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
         nextVideoRef.current = null
       }
     }
-  }, [isActive, isNext, isPrev, nextVideoSrc, isLast])
+  }, [isActive, nextVideoSrc, isLast])
 
   const sectionClasses = [
     styles.videoSection,

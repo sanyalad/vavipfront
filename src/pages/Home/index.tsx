@@ -45,8 +45,8 @@ const SNAP_THRESHOLD = 0.5
 // For a regular mouse wheel, ticks can have noticeable gaps, so keep this relatively high.
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
 // Trackpads emit a stream of wheel deltas; treat a short pause as "release".
-// Reduce this so captions re-appear faster after the user stops (Variant B).
-const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 80
+// Too small values cause gesture fragmentation (snap-back mid-gesture) on real trackpads.
+const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
 // Heuristic: on macOS touchpads the *first* wheel event after a pause can be moderately large (e.g. 64),
 // which must still be treated as trackpad to avoid "one swipe = one full section" misclassification.
 // Keep this below typical mouse wheel ticks (~100/120) so mouse still snaps on one tick.
