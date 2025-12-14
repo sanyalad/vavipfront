@@ -155,6 +155,10 @@ export default function HomePage() {
   }, [setFooterProgressSafe])
 
   const scrollToIndex = useCallback((nextIndex: number) => {
+    // If footer overlay is visible/open, close it before navigating sections
+    if (isFooterOpen || footerProgressRef.current > 0.02) {
+      closeFooter()
+    }
     const safeIndex = clampIndex(nextIndex)
     if (safeIndex === activeIndex || isAnimating) return
 
@@ -176,7 +180,7 @@ export default function HomePage() {
       setDirection(null)
       animationTimerRef.current = null
     }, timeout)
-  }, [activeIndex, clampIndex, isAnimating, stopAnimationTimer])
+  }, [activeIndex, clampIndex, closeFooter, isAnimating, isFooterOpen, stopAnimationTimer])
 
   const finalizeGesture = useCallback(() => {
     if (isAnimating) return
@@ -238,9 +242,18 @@ export default function HomePage() {
     lastWheelTsRef.current = now
     const isLikelyTrackpad = event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_TIME_CUTOFF_MS)
 
+    // If footer overlay is visible while we're not on the last slide (shouldn't happen),
+    // give priority to closing it and do not allow section scroll.
+    if (footerProgressRef.current > 0.02 && activeIndex !== lastSlideIndex) {
+      event.preventDefault()
+      closeFooter()
+      return
+    }
+
     // Footer overlay: on the last slide, wheel down opens footer; wheel up closes footer.
     if (activeIndex === lastSlideIndex) {
       const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
+      const footerInGesture = footerProgressRef.current > 0.02 && !isFooterOpen
 
       // If footer is open:
       if (isFooterOpen) {
@@ -262,6 +275,14 @@ export default function HomePage() {
 
         // Outside footer: keep overlay open; do not let the page scroll.
         event.preventDefault()
+        return
+      }
+
+      // If footer is partially visible (trackpad gesture) and user scrolls up — close it, don't change sections.
+      if (footerInGesture && dir === 'prev') {
+        event.preventDefault()
+        closeFooter()
+        setIsGesturing(false)
         return
       }
 
