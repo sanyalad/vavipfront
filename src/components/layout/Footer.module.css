@@ -12,7 +12,7 @@
   max-width: calc(1290px + 32px);
   margin: 0 auto;
   /* много воздуха */
-  padding: 96px 16px 56px;
+  padding: 76px 16px 46px;
 }
 
 .top {
@@ -95,7 +95,7 @@
 }
 
 .bottom {
-  margin-top: 88px;
+  margin-top: 64px;
   padding-top: 0;
   border-top: none;
   display: flex;
@@ -113,7 +113,7 @@
 
 @media (max-width: 900px) {
   .inner {
-    padding: 64px 16px 42px;
+    padding: 52px 16px 38px;
   }
 
   .navGrid {
