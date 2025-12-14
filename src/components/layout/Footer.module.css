@@ -11,57 +11,27 @@
   width: 100%;
   max-width: calc(1290px + 32px);
   margin: 0 auto;
-  padding: 24px 16px;
+  /* много воздуха */
+  padding: 72px 16px;
 }
 
 .top {
-  display: grid;
-  grid-template-columns: 1fr 378px;
-  gap: 20px;
-  align-items: flex-start;
-  padding: 4px 0;
-}
-
-.navGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.navList {
-  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   padding: 0;
-  display: grid;
-  gap: 10px;
 }
 
-.navTitle {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
-.navList a {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  transition: color var(--transition-fast), opacity var(--transition-fast);
-}
-
-.navList a:hover {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.right {
-  display: grid;
+.brandRow {
+  display: flex;
+  align-items: center;
   gap: 18px;
-  justify-items: start;
+  justify-content: flex-start;
 }
 
 .brand img {
-  height: 22px;
+  /* логотип и иконки одной высоты */
+  height: 18px;
   opacity: 0.85;
   filter: brightness(0) invert(1) saturate(0) contrast(1.1);
 }
@@ -73,38 +43,35 @@
 }
 
 .socialIcon {
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.03);
-  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+  padding: 6px;
+  border-radius: 10px;
+  background: transparent;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
 }
 
 .socialIcon:hover {
-  border-color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.06);
-  transform: translateY(-1px);
+  opacity: 0.95;
 }
 
 .socialIcon img {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   filter: brightness(0) invert(1) saturate(0) contrast(1.1);
   opacity: 0.95;
 }
 
 .bottom {
-  margin-top: 24px;
-  padding-top: 18px;
+  margin-top: 64px;
+  padding-top: 22px;
   border-top: 1px solid rgba(255, 255, 255, 0.10);
   display: flex;
   gap: 10px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .copy {
@@ -122,12 +89,6 @@
 }
 
 @media (max-width: 900px) {
-  .top {
-    grid-template-columns: 1fr;
-  }
-  .navGrid {
-    grid-template-columns: 1fr;
-  }
   .bottom {
     flex-direction: column;
     align-items: flex-start;

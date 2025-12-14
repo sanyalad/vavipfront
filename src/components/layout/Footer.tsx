@@ -15,29 +15,7 @@ export default function Footer() {
       <div className={styles.borderTop} />
       <div className={styles.inner}>
         <div className={styles.top}>
-          <nav className={styles.navGrid} aria-label="Ссылки">
-            <ul className={styles.navList}>
-              <li className={styles.navTitle}>КОНФИДЕНЦИАЛЬНОСТЬ</li>
-              <li><Link to="/privacy">ПОЛИТИКА</Link></li>
-              <li><Link to="/terms">ОФЕРТА BIM</Link></li>
-              <li><Link to="/warranty">ГАРАНТИЯ</Link></li>
-              <li><Link to="/design-contract">ДОГОВОР НА ПРОЕКТИРОВАНИЕ</Link></li>
-            </ul>
-            <ul className={styles.navList}>
-              <li className={styles.navTitle}>СОТРУДНИЧЕСТВО</li>
-              <li><Link to="/for-designers">ДИЗАЙНЕРАМ</Link></li>
-              <li><Link to="/for-builders">СТРОИТЕЛЯМ</Link></li>
-              <li><Link to="/for-distributors">ДИСТРИБЬЮТОРАМ</Link></li>
-              <li><Link to="/for-visual">ДЛЯ ВИЗУАЛА</Link></li>
-            </ul>
-            <ul className={styles.navList}>
-              <li className={styles.navTitle}>КОНТАКТЫ</li>
-              <li><Link to="/contacts">СТРАНИЦА КОНТАКТОВ</Link></li>
-              <li><a href="tel:+79312487013">+7 931 248 70 13</a></li>
-            </ul>
-          </nav>
-
-          <div className={styles.right}>
+          <div className={styles.brandRow} aria-label="VAVIP">
             <div className={styles.brand}>
               <img src="/images/vavip_logo_text.png" alt="Vavip" />
             </div>
