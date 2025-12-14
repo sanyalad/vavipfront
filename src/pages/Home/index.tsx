@@ -71,7 +71,6 @@ export default function HomePage() {
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
-  const scrollLockYRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
