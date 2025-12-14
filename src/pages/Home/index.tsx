@@ -84,6 +84,24 @@ export default function HomePage() {
   const [isFooterOpen, setIsFooterOpen] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
 
+  // #region agent log
+  const dbgLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId,
+        location: 'frontend/src/pages/Home/index.tsx:dbgLog',
+        message,
+        data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+  }, [])
+  // #endregion
+
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
     [lastSlideIndex],
@@ -696,17 +714,97 @@ export default function HomePage() {
   // Lock page scroll while footer overlay is open (prevents accidental background scrolling)
   useEffect(() => {
     if (!isFooterOpen) return
+    // #region agent log
+    {
+      const headerEl = document.getElementById('main-header')
+      const headerRect = headerEl?.getBoundingClientRect()
+      dbgLog('A', 'footer-lock BEFORE apply', {
+        scrollY: window.scrollY,
+        innerWidth: window.innerWidth,
+        clientWidth: document.documentElement.clientWidth,
+        bodyClass: document.body.className,
+        bodyPos: getComputedStyle(document.body).position,
+        bodyOverflowY: getComputedStyle(document.body).overflowY,
+        headerLeft: headerRect?.left,
+        headerWidth: headerRect?.width,
+        vvWidth: (window as any).visualViewport?.width ?? null,
+        vvScale: (window as any).visualViewport?.scale ?? null,
+      })
+    }
+    // #endregion
+
     // Freeze scroll without layout shift (fixed body with preserved scrollY)
     scrollLockYRef.current = window.scrollY || 0
     document.documentElement.style.setProperty('--scroll-lock-top', `-${scrollLockYRef.current}px`)
     document.body.classList.add('footer-drawer-lock')
+
+    // #region agent log
+    requestAnimationFrame(() => {
+      const headerEl = document.getElementById('main-header')
+      const headerRect = headerEl?.getBoundingClientRect()
+      dbgLog('A', 'footer-lock AFTER apply (rAF)', {
+        scrollY: window.scrollY,
+        innerWidth: window.innerWidth,
+        clientWidth: document.documentElement.clientWidth,
+        bodyClass: document.body.className,
+        bodyPos: getComputedStyle(document.body).position,
+        bodyOverflowY: getComputedStyle(document.body).overflowY,
+        headerLeft: headerRect?.left,
+        headerWidth: headerRect?.width,
+        vvWidth: (window as any).visualViewport?.width ?? null,
+        vvScale: (window as any).visualViewport?.scale ?? null,
+        scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
+      })
+    })
+    // #endregion
+
     return () => {
+      // #region agent log
+      {
+        const headerEl = document.getElementById('main-header')
+        const headerRect = headerEl?.getBoundingClientRect()
+        dbgLog('B', 'footer-lock BEFORE cleanup', {
+          scrollY: window.scrollY,
+          innerWidth: window.innerWidth,
+          clientWidth: document.documentElement.clientWidth,
+          bodyClass: document.body.className,
+          bodyPos: getComputedStyle(document.body).position,
+          bodyOverflowY: getComputedStyle(document.body).overflowY,
+          headerLeft: headerRect?.left,
+          headerWidth: headerRect?.width,
+          vvWidth: (window as any).visualViewport?.width ?? null,
+          vvScale: (window as any).visualViewport?.scale ?? null,
+          scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
+        })
+      }
+      // #endregion
+
       document.body.classList.remove('footer-drawer-lock')
       document.documentElement.style.setProperty('--scroll-lock-top', '0px')
       // Restore scroll position
       window.scrollTo(0, scrollLockYRef.current)
+
+      // #region agent log
+      requestAnimationFrame(() => {
+        const headerEl = document.getElementById('main-header')
+        const headerRect = headerEl?.getBoundingClientRect()
+        dbgLog('B', 'footer-lock AFTER cleanup (rAF)', {
+          scrollY: window.scrollY,
+          innerWidth: window.innerWidth,
+          clientWidth: document.documentElement.clientWidth,
+          bodyClass: document.body.className,
+          bodyPos: getComputedStyle(document.body).position,
+          bodyOverflowY: getComputedStyle(document.body).overflowY,
+          headerLeft: headerRect?.left,
+          headerWidth: headerRect?.width,
+          vvWidth: (window as any).visualViewport?.width ?? null,
+          vvScale: (window as any).visualViewport?.scale ?? null,
+          scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
+        })
+      })
+      // #endregion
     }
-  }, [isFooterOpen])
+  }, [dbgLog, isFooterOpen])
 
   // Footer drawer can be partially opened during gesture. Use a separate class for styling/alignment
   // without necessarily locking the whole page scroll.
