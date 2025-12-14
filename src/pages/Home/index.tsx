@@ -733,10 +733,9 @@ export default function HomePage() {
     }
     // #endregion
 
-    // Freeze scroll without layout shift (fixed body with preserved scrollY)
-    scrollLockYRef.current = window.scrollY || 0
-    document.documentElement.style.setProperty('--scroll-lock-top', `-${scrollLockYRef.current}px`)
-    document.body.classList.add('footer-drawer-lock')
+    // IMPORTANT: Do NOT apply body-level scroll locks here.
+    // We already prevent background scrolling via wheel/touch interception while the footer is open.
+    // Body-level locks were causing a measurable layout shift (header width change) in Chrome/Windows.
 
     // #region agent log
     requestAnimationFrame(() => {
@@ -779,10 +778,7 @@ export default function HomePage() {
       }
       // #endregion
 
-      document.body.classList.remove('footer-drawer-lock')
-      document.documentElement.style.setProperty('--scroll-lock-top', '0px')
-      // Restore scroll position
-      window.scrollTo(0, scrollLockYRef.current)
+      // No body-level lock applied; nothing to revert for scroll.
 
       // #region agent log
       requestAnimationFrame(() => {

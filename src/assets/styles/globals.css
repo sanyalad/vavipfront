@@ -270,14 +270,9 @@ body.intro-revealed main {
 
 /* ===== Footer drawer lock (Home page overlay) ===== */
 body.footer-drawer-lock {
-  /* Fix body instead of toggling overflow only:
-     prevents micro layout shifts when the lock class is added/removed */
-  position: fixed;
-  top: var(--scroll-lock-top);
-  left: 0;
-  right: 0;
-  width: 100%;
-  overflow: hidden !important;
+  /* Intentionally kept non-layout-impacting.
+     (We avoid body scroll locking to prevent header shift.) */
+  overscroll-behavior: none;
 }
 
 /* Scroll lock для домашней страницы (SPA секции) */
