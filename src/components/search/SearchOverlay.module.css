@@ -9,10 +9,12 @@
 .panel {
   position: fixed;
   top: calc(var(--header-h, 0px) + 14px);
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  width: min(1240px, calc(100vw - 36px));
+  left: 18px;
+  right: 18px;
+  width: auto;
+  max-width: 1240px;
+  margin: 0 auto;
+  transform: none;
   height: calc(80vh - var(--header-h, 0px));
   z-index: calc(var(--z-modal) + 1);
   border-radius: 20px;
@@ -207,7 +209,10 @@
 @media (max-width: 900px) {
   .panel {
     top: 12px;
-    width: calc(100vw - 24px);
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    width: auto;
     height: calc(88vh);
   }
   .body {
