@@ -50,6 +50,8 @@ export default function Footer() {
           </nav>
         </div>
 
+        <div className={styles.divider} aria-hidden="true" />
+
         <div className={styles.bottom}>
           <div className={styles.brandRow} aria-label="VAVIP">
             <div className={styles.brand}>
