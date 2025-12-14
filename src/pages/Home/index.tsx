@@ -71,6 +71,8 @@ export default function HomePage() {
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
+  const lastTrackpadLogTsRef = useRef(0)
+  const lastWheelClassifyLogTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -83,6 +85,25 @@ export default function HomePage() {
   const [footerProgress, setFooterProgress] = useState(0) // 0..1
   const [isFooterOpen, setIsFooterOpen] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
+
+  // #region agent log
+  const tpLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'trackpad-pre',
+        hypothesisId,
+        location: 'frontend/src/pages/Home/index.tsx:tpLog',
+        message,
+        data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+  }, [])
+  // #endregion
 
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
@@ -223,28 +244,84 @@ export default function HomePage() {
     }
 
     const progress = gestureProgressRef.current
+    // #region agent log
+    tpLog('TP3', 'finalizeGesture: decide', {
+      activeIndex,
+      incomingIndex,
+      lastSlideIndex,
+      dir,
+      progress,
+      isFooterOpen,
+      footerProgress: footerProgressRef.current,
+      isAnimatingRef: isAnimatingRef.current,
+    })
+    // #endregion
     if (progress >= SNAP_THRESHOLD) {
       // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
         const canOpenFooter = lastSlideArrivedAtRef.current > 0
           && (performance.now() - lastSlideArrivedAtRef.current) > 220
         resetGesture()
+        // #region agent log
+        tpLog('TP4', 'finalizeGesture: openFooter?', {
+          canOpenFooter,
+          activeIndex,
+          lastSlideIndex,
+          dir,
+          progress,
+        })
+        // #endregion
         if (canOpenFooter) openFooter()
         return
       }
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       resetGesture()
+      // #region agent log
+      tpLog('TP4', 'finalizeGesture: commit scrollToIndex', {
+        activeIndex,
+        nextIndex,
+        dir,
+        progress,
+      })
+      // #endregion
       scrollToIndex(nextIndex)
       return
     }
 
+    // #region agent log
+    tpLog('TP3', 'finalizeGesture: snap back', {
+      activeIndex,
+      dir,
+      progress,
+    })
+    // #endregion
     resetGesture()
   }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, openFooter, resetGesture, scrollToIndex])
 
   const scheduleFinalize = useCallback((delayMs: number) => {
     stopFinalizeTimer()
+    // #region agent log
+    tpLog('TP2', 'scheduleFinalize: set', {
+      delayMs,
+      activeIndex,
+      incomingIndex,
+      dir: gestureDirectionRef.current,
+      progress: gestureProgressRef.current,
+      isAnimatingRef: isAnimatingRef.current,
+    })
+    // #endregion
     finalizeTimerRef.current = window.setTimeout(() => {
       finalizeTimerRef.current = null
+      // #region agent log
+      tpLog('TP2', 'scheduleFinalize: fired', {
+        delayMs,
+        activeIndex,
+        incomingIndex,
+        dir: gestureDirectionRef.current,
+        progress: gestureProgressRef.current,
+        isAnimatingRef: isAnimatingRef.current,
+      })
+      // #endregion
       finalizeGesture()
     }, delayMs)
   }, [finalizeGesture, stopFinalizeTimer])
@@ -279,6 +356,51 @@ export default function HomePage() {
     const absDelta = Math.abs(deltaY)
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
+
+    // #region agent log
+    // Trackpad-only sampling: helps detect misclassification (mouse vs trackpad) and jitter bursts.
+    if (isLikelyTrackpad && (now - (lastTrackpadLogTsRef.current || 0)) > 90) {
+      lastTrackpadLogTsRef.current = now
+      tpLog('TP1', 'wheel(trackpad) sample', {
+        activeIndex,
+        incomingIndex,
+        isAnimatingRef: isAnimatingRef.current,
+        gestureLocked: gestureLockedRef.current,
+        deltaMode: event.deltaMode,
+        deltaY,
+        absDelta,
+        absDeltaClamped,
+        wheelDt,
+        trackpadDeltaCutoff: TRACKPAD_DELTA_CUTOFF,
+        trackpadStreamCutoffMs: TRACKPAD_STREAM_CUTOFF_MS,
+        progress: gestureProgressRef.current,
+        dir: gestureDirectionRef.current,
+        footerProgress: footerProgressRef.current,
+        isFooterOpen,
+      })
+    }
+    // Critical diagnostic: deltaMode=0 but NOT classified as trackpad.
+    // This is the suspected root cause of "too sensitive" + skipping on mac trackpads with large deltas or slow cadence.
+    if (
+      event.deltaMode === 0
+      && !isLikelyTrackpad
+      && (now - (lastWheelClassifyLogTsRef.current || 0)) > 90
+    ) {
+      lastWheelClassifyLogTsRef.current = now
+      tpLog('TP1', 'wheel(deltaMode0) classified as mouse', {
+        activeIndex,
+        incomingIndex,
+        isAnimatingRef: isAnimatingRef.current,
+        gestureLocked: gestureLockedRef.current,
+        deltaMode: event.deltaMode,
+        deltaY,
+        absDelta,
+        wheelDt,
+        trackpadDeltaCutoff: TRACKPAD_DELTA_CUTOFF,
+        trackpadStreamCutoffMs: TRACKPAD_STREAM_CUTOFF_MS,
+      })
+    }
+    // #endregion
 
     // If footer overlay is visible while we're not on the last slide (shouldn't happen),
     // give priority to closing it and do not allow section scroll.
@@ -373,6 +495,20 @@ export default function HomePage() {
     // Mouse wheel: переключаемся сразу с 1 тика (перфекционистично и без "накопления").
     // Trackpad остаётся "follow until release".
     if (!isLikelyTrackpad) {
+      // #region agent log
+      if (event.deltaMode === 0) {
+        tpLog('TP4', 'mouse-branch commit (deltaMode0)', {
+          activeIndex,
+          incomingIndex,
+          dir,
+          deltaMode: event.deltaMode,
+          deltaY,
+          absDelta,
+          wheelDt,
+          isAnimatingRef: isAnimatingRef.current,
+        })
+      }
+      // #endregion
       resetGesture()
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       scrollToIndex(nextIndex)
@@ -389,6 +525,13 @@ export default function HomePage() {
       setDirection(dir)
       setIsAnimating(false)
       setGestureProgress(0)
+      // #region agent log
+      tpLog('TP2', 'trackpad: new gesture dir', {
+        activeIndex,
+        incomingIndex: clampIndex(activeIndex + (dir === 'next' ? 1 : -1)),
+        dir,
+      })
+      // #endregion
     }
 
     stopGestureTimer()
@@ -402,6 +545,21 @@ export default function HomePage() {
     gestureProgressRef.current = nextProgress
     if (isLikelyTrackpad) publishGestureProgressRaf()
     else publishGestureProgressImmediate()
+
+    // #region agent log
+    if (isLikelyTrackpad && (now - (lastTrackpadLogTsRef.current || 0)) > 90) {
+      lastTrackpadLogTsRef.current = now
+      tpLog('TP2', 'trackpad: progress update', {
+        activeIndex,
+        incomingIndex,
+        dir,
+        wheelRange,
+        absDeltaClamped,
+        prevProgress,
+        nextProgress,
+      })
+    }
+    // #endregion
 
     // Trackpad: follow until "release" (idle), then commit/rollback
     if (isLikelyTrackpad) {
