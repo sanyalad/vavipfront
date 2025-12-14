@@ -56,7 +56,7 @@ export default function HomePage() {
   const prefersReducedMotion = useRef(false)
 
   const videoWrapperRef = useRef<HTMLDivElement | null>(null)
-  const afterStackRef = useRef<HTMLDivElement | null>(null)
+  const footerDrawerRef = useRef<HTMLDivElement | null>(null)
   const touchStartY = useRef(0)
   const animationTimerRef = useRef<number | null>(null)
   const gestureTimerRef = useRef<number | null>(null)
@@ -64,6 +64,7 @@ export default function HomePage() {
   const gestureProgressRef = useRef(0)
   const gestureDirectionRef = useRef<'next' | 'prev' | null>(null)
   const gestureLockedRef = useRef(false)
+  const footerProgressRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -72,6 +73,8 @@ export default function HomePage() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [gestureProgress, setGestureProgress] = useState(0)
   const [isGesturing, setIsGesturing] = useState(false)
+  const [footerProgress, setFooterProgress] = useState(0) // 0..1
+  const [isFooterOpen, setIsFooterOpen] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
 
   const clampIndex = useCallback(
@@ -132,6 +135,22 @@ export default function HomePage() {
     setIsGesturing(false)
   }, [stopFinalizeTimer, stopGestureTimer])
 
+  const setFooterProgressSafe = useCallback((next: number) => {
+    const v = Math.min(1, Math.max(0, next))
+    footerProgressRef.current = v
+    setFooterProgress(v)
+  }, [])
+
+  const openFooter = useCallback(() => {
+    setIsFooterOpen(true)
+    setFooterProgressSafe(1)
+  }, [setFooterProgressSafe])
+
+  const closeFooter = useCallback(() => {
+    setIsFooterOpen(false)
+    setFooterProgressSafe(0)
+  }, [setFooterProgressSafe])
+
   const scrollToIndex = useCallback((nextIndex: number) => {
     const safeIndex = clampIndex(nextIndex)
     if (safeIndex === activeIndex || isAnimating) return
@@ -166,6 +185,12 @@ export default function HomePage() {
 
     const progress = gestureProgressRef.current
     if (progress >= SNAP_THRESHOLD) {
+      // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
+      if (dir === 'next' && activeIndex === lastSlideIndex) {
+        resetGesture()
+        openFooter()
+        return
+      }
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       resetGesture()
       scrollToIndex(nextIndex)
@@ -173,7 +198,7 @@ export default function HomePage() {
     }
 
     resetGesture()
-  }, [activeIndex, clampIndex, isAnimating, resetGesture, scrollToIndex])
+  }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, openFooter, resetGesture, scrollToIndex])
 
   const scheduleFinalize = useCallback((delayMs: number) => {
     stopFinalizeTimer()
@@ -191,18 +216,13 @@ export default function HomePage() {
 
     const wrapper = videoWrapperRef.current
     if (!wrapper) return
-    const afterStack = afterStackRef.current
 
     // Only hijack scroll when the hero stack actually fills the viewport.
     // This prevents wheel events over the footer from still switching slides.
     const wrapperRect = wrapper.getBoundingClientRect()
     const wrapperTopAligned = Math.abs(wrapperRect.top) <= 2
     const wrapperFillsViewport = wrapperRect.bottom >= window.innerHeight * 0.92
-    // Additionally, do NOT hijack while the footer area is even slightly visible.
-    // This lets native scroll bring the page back to the stack before we start switching slides.
-    const afterTop = afterStack?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
-    const footerNotVisible = afterTop >= window.innerHeight - 2
-    const shouldHandle = wrapperTopAligned && wrapperFillsViewport && footerNotVisible
+    const shouldHandle = wrapperTopAligned && wrapperFillsViewport
     if (!shouldHandle) return
 
     let deltaY = event.deltaY || 0
@@ -210,6 +230,58 @@ export default function HomePage() {
     if (event.deltaMode === 1) deltaY *= 16 // lines -> px-ish
     if (event.deltaMode === 2) deltaY *= window.innerHeight // pages -> px-ish
     if (Math.abs(deltaY) < WHEEL_THRESHOLD) return
+
+    // Footer overlay: on the last slide, wheel down opens footer; wheel up closes footer.
+    if (activeIndex === lastSlideIndex) {
+      const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
+      const isLikelyTrackpad = event.deltaMode === 0 && Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF
+
+      // If footer is open:
+      if (isFooterOpen) {
+        const footerEl = footerDrawerRef.current
+        const targetNode = event.target as Node | null
+        const isInsideFooter = !!(footerEl && targetNode && footerEl.contains(targetNode))
+        const canScrollUpInside =
+          !!footerEl && footerEl.scrollHeight > footerEl.clientHeight && footerEl.scrollTop > 0
+
+        // If scrolling up at the top of footer -> close
+        if (dir === 'prev' && (!isInsideFooter || !canScrollUpInside)) {
+          event.preventDefault()
+          closeFooter()
+          return
+        }
+
+        // If inside footer, let it scroll naturally.
+        if (isInsideFooter) return
+
+        // Outside footer: keep overlay open; do not let the page scroll.
+        event.preventDefault()
+        return
+      }
+
+      // Footer closed, wheel down should open it.
+      if (dir === 'next') {
+        event.preventDefault()
+        if (!isLikelyTrackpad) {
+          openFooter()
+          return
+        }
+
+        // Trackpad: follow until idle, then snap open/close.
+        stopFinalizeTimer()
+        const wheelRange = Math.min(900, Math.max(260, window.innerHeight * 0.9))
+        const nextProgress = Math.min(1, footerProgressRef.current + Math.abs(deltaY) / wheelRange)
+        setFooterProgressSafe(nextProgress)
+        setIsGesturing(true)
+        finalizeTimerRef.current = window.setTimeout(() => {
+          finalizeTimerRef.current = null
+          if (footerProgressRef.current >= SNAP_THRESHOLD) openFooter()
+          else closeFooter()
+          setIsGesturing(false)
+        }, TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
+        return
+      }
+    }
 
     // После возврата из каталога убеждаемся, что мы не в состоянии анимации
     if (isAnimating) {
@@ -223,7 +295,7 @@ export default function HomePage() {
     const isLikelyTrackpad = event.deltaMode === 0 && Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF
 
     // Boundary: allow native scroll (down from last slide to footer, etc.)
-    if ((dir === 'prev' && activeIndex === 0) || (dir === 'next' && activeIndex === lastSlideIndex)) {
+    if (dir === 'prev' && activeIndex === 0) {
       resetGesture()
       return
     }
@@ -278,14 +350,18 @@ export default function HomePage() {
   }, [
     activeIndex,
     clampIndex,
-    isAnimating,
-    lastSlideIndex,
+    closeFooter,
     finalizeGesture,
+    isAnimating,
+    isFooterOpen,
+    lastSlideIndex,
+    openFooter,
     publishGestureProgress,
     resetGesture,
     scheduleFinalize,
     scheduleGestureReset,
     scrollToIndex,
+    setFooterProgressSafe,
     stopFinalizeTimer,
     stopGestureTimer,
   ])
@@ -311,8 +387,30 @@ export default function HomePage() {
 
     const dir: 'next' | 'prev' = diff > 0 ? 'next' : 'prev'
 
-    // Boundary: allow native scroll when at ends
-    if ((dir === 'prev' && activeIndex === 0) || (dir === 'next' && activeIndex === lastSlideIndex)) {
+    // Footer overlay gesture on the last slide (follow finger)
+    if (activeIndex === lastSlideIndex) {
+      const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
+
+      // Swipe up -> open
+      if (dir === 'next') {
+        event.preventDefault()
+        setIsGesturing(true)
+        setFooterProgressSafe(Math.min(1, Math.abs(diff) / range))
+        return
+      }
+
+      // Swipe down -> close (only if already open)
+      if (dir === 'prev' && isFooterOpen) {
+        event.preventDefault()
+        setIsGesturing(true)
+        const closeAmount = Math.min(1, Math.abs(diff) / range)
+        setFooterProgressSafe(1 - closeAmount)
+        return
+      }
+    }
+
+    // Boundary: allow native scroll when at top edge
+    if (dir === 'prev' && activeIndex === 0) {
       resetGesture()
       return
     }
@@ -332,25 +430,56 @@ export default function HomePage() {
     const nextProgress = Math.min(1, Math.abs(diff) / range)
     gestureProgressRef.current = nextProgress
     publishGestureProgress()
-  }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, publishGestureProgress, resetGesture, scrollToIndex])
+  }, [
+    activeIndex,
+    clampIndex,
+    isAnimating,
+    isFooterOpen,
+    lastSlideIndex,
+    publishGestureProgress,
+    resetGesture,
+    scrollToIndex,
+    setFooterProgressSafe,
+  ])
 
   const handleTouchEnd = useCallback(() => {
     if (prefersReducedMotion.current) return
     if (isAnimating) return
     // Touch: commit/rollback only on release
     gestureLockedRef.current = false
+    if (activeIndex === lastSlideIndex) {
+      // Commit footer drawer state on release
+      if (!isFooterOpen) {
+        if (footerProgressRef.current >= SNAP_THRESHOLD) openFooter()
+        else closeFooter()
+      } else {
+        if (footerProgressRef.current <= (1 - SNAP_THRESHOLD)) closeFooter()
+        else openFooter()
+      }
+      setIsGesturing(false)
+      return
+    }
     finalizeGesture()
-  }, [finalizeGesture, isAnimating, prefersReducedMotion])
+  }, [activeIndex, closeFooter, finalizeGesture, isAnimating, isFooterOpen, lastSlideIndex, openFooter])
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (document.body.classList.contains('dropdown-scroll-lock')) return
     if (isAnimating) return
     if (event.key === 'ArrowDown' || event.key === 'PageDown') {
-      if (activeIndex === lastSlideIndex) return
+      if (activeIndex === lastSlideIndex) {
+        event.preventDefault()
+        openFooter()
+        return
+      }
       event.preventDefault()
       scrollToIndex(activeIndex + 1)
     }
     if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+      if (activeIndex === lastSlideIndex && isFooterOpen) {
+        event.preventDefault()
+        closeFooter()
+        return
+      }
       // Если на первом слайде — ничего не делаем
       if (activeIndex === 0) {
         event.preventDefault()
@@ -359,7 +488,7 @@ export default function HomePage() {
       event.preventDefault()
       scrollToIndex(activeIndex - 1)
     }
-  }, [activeIndex, isAnimating, lastSlideIndex, scrollToIndex])
+  }, [activeIndex, closeFooter, isAnimating, isFooterOpen, lastSlideIndex, openFooter, scrollToIndex])
 
   // Wheel + touch listeners on window to avoid native scroll дергания
   useEffect(() => {
@@ -501,6 +630,15 @@ export default function HomePage() {
     }
   }, [location.hash, scrollToIndex])
 
+  // Lock page scroll while footer overlay is open (prevents accidental background scrolling)
+  useEffect(() => {
+    if (!isFooterOpen) return
+    document.body.classList.add('footer-drawer-lock')
+    return () => {
+      document.body.classList.remove('footer-drawer-lock')
+    }
+  }, [isFooterOpen])
+
   // Во время анимации:
   // При скролле вниз: fromIndex -> prev (остается), activeIndex -> next (выезжает снизу)
   // При скролле вверх: activeIndex -> prev (выезжает сверху), fromIndex -> next (уходит вниз)
@@ -555,8 +693,21 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Footer after the hero stack (normal native scroll) */}
-      <div ref={afterStackRef} className={styles.afterStack}>
+      {/* Footer overlay (opens over the 4th video section) */}
+      <div
+        className={styles.footerBackdrop}
+        data-visible={footerProgress > 0.02 ? 'true' : 'false'}
+        style={{ ['--footer-progress' as string]: String(footerProgress) }}
+        onClick={closeFooter}
+        aria-hidden="true"
+      />
+      <div
+        ref={footerDrawerRef}
+        className={styles.footerDrawer}
+        data-visible={footerProgress > 0.02 ? 'true' : 'false'}
+        style={{ ['--footer-progress' as string]: String(footerProgress) }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <Footer />
       </div>
 

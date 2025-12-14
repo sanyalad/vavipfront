@@ -261,6 +261,11 @@ body.intro-revealed main {
     filter 0.6s ease 0.18s;
 }
 
+/* ===== Footer drawer lock (Home page overlay) ===== */
+body.footer-drawer-lock {
+  overflow: hidden !important;
+}
+
 /* Scroll lock для домашней страницы (SPA секции) */
 body.spa-scroll-lock {
   overflow: hidden;

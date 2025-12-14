@@ -86,10 +86,46 @@
 }
 
 /* ===== Каталог и футер после стека ===== */
-.afterStack {
-  position: relative;
+/* Footer overlay drawer (opens above the 4th section) */
+.footerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1250;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.footerBackdrop[data-visible="true"] {
+  opacity: var(--footer-progress, 0);
+  pointer-events: auto;
+}
+
+.footerDrawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1260;
+  height: min(78vh, 720px);
+  transform: translateY(calc((1 - var(--footer-progress, 0)) * 100%));
+  transition: transform var(--transition-medium);
   background: var(--color-bg);
-  isolation: isolate;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.65);
+  overflow: auto;
+  pointer-events: none;
+}
+
+.footerDrawer[data-visible="true"] {
+  pointer-events: auto;
+}
+
+@media (max-width: 900px) {
+  .footerDrawer {
+    height: min(86vh, 760px);
+  }
 }
 
 /* ===== Reduced motion ===== */
