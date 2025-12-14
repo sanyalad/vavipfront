@@ -238,6 +238,8 @@
   opacity: 1;
   transform: translate(-50%, 0);
   filter: blur(0);
+  /* show text after the section "lands" (no glued feel during motion) */
+  transition-delay: 0.22s;
 }
 
 .videoSection[data-state="prev"] .videoCaption {
@@ -251,26 +253,14 @@
   filter: blur(8px);
 }
 
-/* Показываем подпись сразу, пока секция выезжает снизу вверх */
-[data-direction="next"] .videoSection[data-state="next"] .videoCaption {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  filter: blur(0);
-  transition:
-    opacity 0.2s ease-out 0.12s,
-    transform 0.35s ease-out 0.12s,
-    filter 0.35s ease-out 0.12s;
-}
-
-/* При скролле вверх показываем подпись у входящей секции сразу */
-[data-direction="prev"] .videoSection[data-state="prev"] .videoCaption {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  filter: blur(0);
-  transition:
-    opacity 0.2s ease-out 0.12s,
-    transform 0.35s ease-out 0.12s,
-    filter 0.35s ease-out 0.12s;
+/* During deck movement we keep captions hidden; they fade in after landing (active state) */
+[data-direction="next"] .videoCaption,
+[data-direction="prev"] .videoCaption,
+[data-gesture="true"] .videoCaption {
+  opacity: 0 !important;
+  transform: translate(-50%, 22px) !important;
+  filter: blur(10px) !important;
+  transition-delay: 0s !important;
 }
 
 /* ===== Video poster fallback ===== */
@@ -293,6 +283,11 @@
   .videoCaption,
   .videoSection video {
     transition: none;
+  }
+
+  .videoSection.active .videoCaption,
+  .videoSection[data-state="active"] .videoCaption {
+    transition-delay: 0s;
   }
 }
 

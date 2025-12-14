@@ -41,8 +41,11 @@
         background: #0a0a0a;
         pointer-events: all;
         opacity: 1;
-        animation: introFadeOut 0.5s ease forwards;
-        animation-delay: 2.05s;
+      }
+
+      /* Fade only when we explicitly finish (prevents "logo disappears" gap) */
+      .intro-static.intro-static--out {
+        animation: introFadeOut 0.45s ease forwards;
       }
 
       .intro-static__logo {
@@ -154,8 +157,11 @@
         window.setTimeout(function () {
           root.classList.remove('intro-static-active');
           root.classList.add('intro-static-done');
-          var el = document.getElementById('intro-static');
-          if (el && el.parentNode) el.parentNode.removeChild(el);
+          if (intro) intro.classList.add('intro-static--out');
+          window.setTimeout(function () {
+            var el = document.getElementById('intro-static');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+          }, 520);
         }, 2900);
       })();
     </script>
