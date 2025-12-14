@@ -481,14 +481,14 @@ export default function HomePage() {
     const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
     const nextProgress = Math.min(1, Math.abs(diff) / range)
     gestureProgressRef.current = nextProgress
-    publishGestureProgress()
+    // Touch should feel "1:1" — update immediately (no RAF batching).
+    publishGestureProgressImmediate()
   }, [
     activeIndex,
     clampIndex,
-    isAnimating,
     isFooterOpen,
     lastSlideIndex,
-    publishGestureProgress,
+    publishGestureProgressImmediate,
     resetGesture,
     scrollToIndex,
     setFooterProgressSafe,
