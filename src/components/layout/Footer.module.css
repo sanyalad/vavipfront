@@ -3,10 +3,6 @@
   background: var(--color-bg);
 }
 
-.borderTop {
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-}
-
 .inner {
   width: 100%;
   /* a bit wider / more "air", while still fitting the 40vh drawer */
@@ -17,64 +13,83 @@
   box-sizing: border-box;
 }
 
-.top {
-  padding: 0;
+.footerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.navGrid {
-  display: grid;
-  grid-template-columns: minmax(280px, 560px) minmax(280px, 560px);
+.columns {
+  display: flex;
+  justify-content: flex-start;
   gap: 96px;
-  align-items: start;
+  flex-wrap: nowrap;
+  padding-top: 32px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.divider {
-  margin-top: 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+.column {
+  min-width: 260px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.navList {
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-}
-
-.navTitle {
-  color: rgba(255, 255, 255, 0.75);
+.columns strong {
+  color: rgba(255, 255, 255, 0.90);
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 
-.navList a {
+.columns a {
   color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  font-weight: 400;
   font-size: 13px;
   line-height: 1.55;
   letter-spacing: 0.02em;
   transition: color var(--transition-fast), opacity var(--transition-fast);
 }
 
-.navList a:hover {
+.columns a:hover {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.brandRow {
+.footerDivider {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 14px 0 0;
+}
+
+.footerBottomWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footerBottom {
   display: flex;
   align-items: center;
   gap: 18px;
   justify-content: flex-start;
 }
 
-.brand img {
+.verticalTextFooter img {
   /* логотип и иконки одной высоты */
   height: 18px;
   opacity: 0.85;
   filter: brightness(0) invert(1) saturate(0) contrast(1.1);
 }
 
-.social {
+.socialIcons {
   display: flex;
   gap: 14px;
   align-items: center;
@@ -105,16 +120,6 @@
   opacity: 0.95;
 }
 
-.bottom {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: none;
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  justify-content: space-between;
-}
-
 /* ===== Drawer mode (Home page overlay) ===== */
 :global(body.footer-drawer-active) .inner {
   /* Align with header phone number axis:
@@ -130,22 +135,18 @@
   flex-direction: column;
 }
 
-:global(body.footer-drawer-active) .top {
+:global(body.footer-drawer-active) .footerContent {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:global(body.footer-drawer-active) .columns {
   flex: 1;
   overflow: auto;
-  /* Important for flex layouts: allow the scrollable area to shrink,
-     otherwise it can push the bottom block outside the 40vh drawer. */
   min-height: 0;
   padding-right: 6px; /* keep scrollbar off the text a bit */
-}
-
-:global(body.footer-drawer-active) .divider {
-  margin-top: 14px;
-}
-
-:global(body.footer-drawer-active) .bottom {
-  margin-top: 0;
-  padding-top: 14px;
 }
 
 .copy {
@@ -155,24 +156,34 @@
   text-transform: none;
 }
 
+.copyrightText {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: none;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .inner {
     padding: 34px 16px 16px;
   }
 
-  .navGrid {
-    grid-template-columns: 1fr;
-    gap: 38px;
+  .columns {
+    flex-direction: column;
+    gap: 28px;
+    padding-top: 18px;
   }
 
-  .divider {
-    margin-top: 18px;
+  .column {
+    min-width: 0;
+    max-width: none;
   }
 
-  .bottom {
+  .footerBottomWrapper {
     flex-direction: column;
     align-items: flex-start;
-    gap: 18px;
+    gap: 14px;
   }
 
   :global(body.footer-drawer-active) .inner {
