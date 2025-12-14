@@ -71,6 +71,7 @@ export default function HomePage() {
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
+  const scrollLockYRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -695,9 +696,15 @@ export default function HomePage() {
   // Lock page scroll while footer overlay is open (prevents accidental background scrolling)
   useEffect(() => {
     if (!isFooterOpen) return
+    // Freeze scroll without layout shift (fixed body with preserved scrollY)
+    scrollLockYRef.current = window.scrollY || 0
+    document.documentElement.style.setProperty('--scroll-lock-top', `-${scrollLockYRef.current}px`)
     document.body.classList.add('footer-drawer-lock')
     return () => {
       document.body.classList.remove('footer-drawer-lock')
+      document.documentElement.style.setProperty('--scroll-lock-top', '0px')
+      // Restore scroll position
+      window.scrollTo(0, scrollLockYRef.current)
     }
   }, [isFooterOpen])
 

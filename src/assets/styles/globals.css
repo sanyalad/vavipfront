@@ -39,6 +39,8 @@
   --color-border: rgba(255, 255, 255, 0.12);
   /* Scrollbar compensation (prevents header/logo shift when scroll-lock toggles) */
   --scrollbar-gap: 0px;
+  /* Body fixed-scroll lock */
+  --scroll-lock-top: 0px;
   /* Монохромные статусы (по запросу палитры: графит/серебро/чёрный) */
   --color-error: #d1d5db;
   --color-success: #c0c0c0;
@@ -268,6 +270,13 @@ body.intro-revealed main {
 
 /* ===== Footer drawer lock (Home page overlay) ===== */
 body.footer-drawer-lock {
+  /* Fix body instead of toggling overflow only:
+     prevents micro layout shifts when the lock class is added/removed */
+  position: fixed;
+  top: var(--scroll-lock-top);
+  left: 0;
+  right: 0;
+  width: 100%;
   overflow: hidden !important;
 }
 
@@ -278,6 +287,11 @@ body.spa-scroll-lock {
 
 /* Scroll lock для выпадающего меню в шапке */
 body.dropdown-scroll-lock {
+  position: fixed;
+  top: var(--scroll-lock-top);
+  left: 0;
+  right: 0;
+  width: 100%;
   overflow: hidden !important;
 }
 

@@ -28,6 +28,7 @@ export default function Header() {
   const hoverTimerRef = useRef<number | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
   const dropdownPanelRef = useRef<HTMLDivElement | null>(null)
+  const scrollLockYRef = useRef(0)
   const body = typeof document !== 'undefined' ? document.body : null
 
   const cartCount = totalItems()
@@ -107,12 +108,17 @@ export default function Header() {
   useEffect(() => {
     if (!body) return
     if (activeMenu) {
+      scrollLockYRef.current = window.scrollY || 0
+      document.documentElement.style.setProperty('--scroll-lock-top', `-${scrollLockYRef.current}px`)
       body.classList.add('dropdown-scroll-lock')
     } else {
       body.classList.remove('dropdown-scroll-lock')
+      document.documentElement.style.setProperty('--scroll-lock-top', '0px')
+      window.scrollTo(0, scrollLockYRef.current)
     }
     return () => {
       body.classList.remove('dropdown-scroll-lock')
+      document.documentElement.style.setProperty('--scroll-lock-top', '0px')
     }
   }, [activeMenu, body])
 
