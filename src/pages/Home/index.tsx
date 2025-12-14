@@ -195,6 +195,20 @@ export default function HomePage() {
   }, [setFooterProgressSafe])
 
   const scrollToIndex = useCallback((nextIndex: number) => {
+    // #region agent log
+    dbgLog('T3', 'scrollToIndex called', {
+      activeIndex,
+      nextIndex,
+      incomingIndex,
+      direction,
+      isAnimatingRef: isAnimatingRef.current,
+      isAnimating,
+      isGesturing,
+      footerProgress: footerProgressRef.current,
+      isFooterOpen,
+    })
+    // #endregion
+
     // If footer overlay is visible/open, close it before navigating sections
     if (isFooterOpen || footerProgressRef.current > 0.02) {
       closeFooter()
@@ -236,6 +250,17 @@ export default function HomePage() {
     }
 
     const progress = gestureProgressRef.current
+    // #region agent log
+    dbgLog('T2', 'finalizeGesture', {
+      activeIndex,
+      lastSlideIndex,
+      dir,
+      progress,
+      incomingIndex,
+      isFooterOpen,
+      footerProgress: footerProgressRef.current,
+    })
+    // #endregion
     if (progress >= SNAP_THRESHOLD) {
       // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
@@ -258,6 +283,15 @@ export default function HomePage() {
     stopFinalizeTimer()
     finalizeTimerRef.current = window.setTimeout(() => {
       finalizeTimerRef.current = null
+      // #region agent log
+      dbgLog('T2', 'scheduleFinalize fired', {
+        delayMs,
+        activeIndex,
+        incomingIndex,
+        progress: gestureProgressRef.current,
+        dir: gestureDirectionRef.current,
+      })
+      // #endregion
       finalizeGesture()
     }, delayMs)
   }, [finalizeGesture, stopFinalizeTimer])
@@ -291,6 +325,25 @@ export default function HomePage() {
     const absDelta = Math.abs(deltaY)
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
+
+    // #region agent log
+    if (isLikelyTrackpad) {
+      dbgLog('T1', 'wheel(trackpad) sample', {
+        activeIndex,
+        incomingIndex,
+        isAnimatingRef: isAnimatingRef.current,
+        gestureLocked: gestureLockedRef.current,
+        deltaY,
+        absDelta,
+        absDeltaClamped,
+        wheelDt,
+        progress: gestureProgressRef.current,
+        dir: gestureDirectionRef.current,
+        footerProgress: footerProgressRef.current,
+        isFooterOpen,
+      })
+    }
+    // #endregion
 
     // If footer overlay is visible while we're not on the last slide (shouldn't happen),
     // give priority to closing it and do not allow section scroll.
@@ -409,10 +462,24 @@ export default function HomePage() {
     const wheelRange = isLikelyTrackpad
       ? Math.min(900, Math.max(260, window.innerHeight * 0.9))
       : MOUSE_WHEEL_RANGE
-    const nextProgress = Math.min(1, gestureProgressRef.current + absDeltaClamped / wheelRange)
+    const prevProgress = gestureProgressRef.current
+    const nextProgress = Math.min(1, prevProgress + absDeltaClamped / wheelRange)
     gestureProgressRef.current = nextProgress
     if (isLikelyTrackpad) publishGestureProgressRaf()
     else publishGestureProgressImmediate()
+
+    // #region agent log
+    if (isLikelyTrackpad) {
+      dbgLog('T2', 'trackpad progress update', {
+        activeIndex,
+        incomingIndex,
+        wheelRange,
+        prevProgress,
+        nextProgress,
+        dir,
+      })
+    }
+    // #endregion
 
     // Trackpad: follow until "release" (idle), then commit/rollback
     if (isLikelyTrackpad) {
