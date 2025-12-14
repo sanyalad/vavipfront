@@ -926,16 +926,32 @@ export default function HomePage() {
       const drawerEl = footerDrawerRef.current
       const drawerRect = drawerEl?.getBoundingClientRect()
       const linksEl = drawerEl?.querySelector('[aria-label="Ссылки"]') as HTMLElement | null
+      const bottomEl = drawerEl?.querySelector('[aria-label="Социальные сети"]') as HTMLElement | null
+      const bottomRect = bottomEl?.getBoundingClientRect()
+      const headerStyle = headerEl ? getComputedStyle(headerEl) : null
+      const drawerStyle = drawerEl ? getComputedStyle(drawerEl) : null
       dbgLog('F2', 'footer-drawer-active AFTER toggle (rAF)', {
         footerProgress,
         bodyClass: document.body.className,
         headerWidth: headerRect?.width,
         headerLeft: headerRect?.left,
+        headerCssWidth: headerStyle?.width ?? null,
+        headerCssLeft: headerStyle?.left ?? null,
+        headerCssRight: headerStyle?.right ?? null,
+        headerCssInset: (headerStyle as any)?.inset ?? null,
+        headerBoxSizing: headerStyle?.boxSizing ?? null,
         drawerHeight: drawerRect?.height ?? null,
+        drawerClientHeight: drawerEl?.clientHeight ?? null,
+        drawerScrollHeight: drawerEl?.scrollHeight ?? null,
+        drawerOverflowY: drawerStyle?.overflowY ?? null,
         drawerVisible: drawerEl?.getAttribute('data-visible') ?? null,
         linksClientHeight: linksEl?.clientHeight ?? null,
         linksScrollHeight: linksEl?.scrollHeight ?? null,
         linksScrollTop: linksEl?.scrollTop ?? null,
+        bottomTop: bottomRect?.top ?? null,
+        bottomBottom: bottomRect?.bottom ?? null,
+        drawerTop: drawerRect?.top ?? null,
+        drawerBottom: drawerRect?.bottom ?? null,
       })
     })
     // #endregion
