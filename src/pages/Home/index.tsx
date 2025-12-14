@@ -78,6 +78,8 @@ export default function HomePage() {
   const lastWheelTsRef = useRef(0)
   const lastTrackpadLogTsRef = useRef(0)
   const lastWheelClassifyLogTsRef = useRef(0)
+  const lastTrackpadIgnoreLogTsRef = useRef(0)
+  const trackpadIgnoredCountRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -193,6 +195,14 @@ export default function HomePage() {
   }, [])
 
   const openFooter = useCallback(() => {
+    // #region agent log
+    tpLog('F5', 'openFooter() called', {
+      activeIndex,
+      lastSlideIndex,
+      footerProgress: footerProgressRef.current,
+      isFooterOpen,
+    })
+    // #endregion
     setIsFooterOpen(true)
     setFooterProgressSafe(1)
     // Make the drawer feel "independent": always start from top when opening.
@@ -203,6 +213,14 @@ export default function HomePage() {
   }, [setFooterProgressSafe])
 
   const closeFooter = useCallback(() => {
+    // #region agent log
+    tpLog('F5', 'closeFooter() called', {
+      activeIndex,
+      lastSlideIndex,
+      footerProgress: footerProgressRef.current,
+      isFooterOpen,
+    })
+    // #endregion
     setIsFooterOpen(false)
     setFooterProgressSafe(0)
   }, [setFooterProgressSafe])
@@ -364,8 +382,27 @@ export default function HomePage() {
 
     // Ignore tiny trackpad jitters when no gesture is in progress (reduces "double movement" feel).
     if (isLikelyTrackpad && !gestureDirectionRef.current && absDelta < TRACKPAD_START_DELTA_PX) {
+      // #region agent log
+      trackpadIgnoredCountRef.current += 1
+      if ((now - (lastTrackpadIgnoreLogTsRef.current || 0)) > 200) {
+        lastTrackpadIgnoreLogTsRef.current = now
+        tpLog('TP5', 'trackpad tiny-delta ignored', {
+          activeIndex,
+          incomingIndex,
+          absDelta,
+          deltaY,
+          ignoredCount: trackpadIgnoredCountRef.current,
+          cutoffPx: TRACKPAD_START_DELTA_PX,
+          wheelDt,
+        })
+        // reset counter so we can see bursts
+        trackpadIgnoredCountRef.current = 0
+      }
+      // #endregion
       return
     }
+    // reset ignore counter once we accept meaningful deltas
+    trackpadIgnoredCountRef.current = 0
 
     // #region agent log
     // Trackpad-only sampling: helps detect misclassification (mouse vs trackpad) and jitter bursts.
@@ -426,6 +463,24 @@ export default function HomePage() {
       const footerInGesture = footerProgressRef.current > 0.02 && !isFooterOpen
       const canOpenFooter = lastSlideArrivedAtRef.current > 0
         && (now - lastSlideArrivedAtRef.current) > 220
+
+      // #region agent log
+      // One log per gesture start is enough; we gate it by directionRef.
+      if (isLikelyTrackpad && !gestureDirectionRef.current) {
+        tpLog('F6', 'last-slide footer branch entered', {
+          activeIndex,
+          lastSlideIndex,
+          dir,
+          canOpenFooter,
+          footerInGesture,
+          isFooterOpen,
+          footerProgress: footerProgressRef.current,
+          wheelDt,
+          deltaY,
+          absDelta,
+        })
+      }
+      // #endregion
 
       // If footer is open:
       if (isFooterOpen) {
