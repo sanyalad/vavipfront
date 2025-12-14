@@ -33,7 +33,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Production builds: sourcemaps can be very large and often break deployments on small disks.
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
