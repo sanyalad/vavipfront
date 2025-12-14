@@ -37,6 +37,8 @@
   --color-text-secondary: #c0c0c0; /* silver */
   --color-text-muted: #a5aab5; /* soft graphite/silver */
   --color-border: rgba(255, 255, 255, 0.12);
+  /* Scrollbar compensation (prevents header/logo shift when scroll-lock toggles) */
+  --scrollbar-gap: 0px;
   /* Монохромные статусы (по запросу палитры: графит/серебро/чёрный) */
   --color-error: #d1d5db;
   --color-success: #c0c0c0;
@@ -268,12 +270,19 @@ body.footer-drawer-lock {
 
 /* Scroll lock для домашней страницы (SPA секции) */
 body.spa-scroll-lock {
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 /* Scroll lock для выпадающего меню в шапке */
 body.dropdown-scroll-lock {
-  overflow: hidden;
+  overflow: hidden !important;
+}
+
+/* Prevent header/logo horizontal shift when the scrollbar disappears */
+body.footer-drawer-lock #main-header,
+body.dropdown-scroll-lock #main-header,
+body.spa-scroll-lock #main-header {
+  right: var(--scrollbar-gap) !important;
 }
 
 /* ===== Reduced motion ===== */
