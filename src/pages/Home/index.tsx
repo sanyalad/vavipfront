@@ -71,7 +71,6 @@ export default function HomePage() {
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
-  const lastWheelSampleTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -84,27 +83,6 @@ export default function HomePage() {
   const [footerProgress, setFooterProgress] = useState(0) // 0..1
   const [isFooterOpen, setIsFooterOpen] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
-
-  // #region agent log
-  const dbgLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    // Use no-cors + text/plain to avoid CORS preflight blocking logs in browsers.
-    // (We only need the request to reach the local ingest server; we don't read the response.)
-    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId,
-        location: 'frontend/src/pages/Home/index.tsx:dbgLog',
-        message,
-        data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-  }, [])
-  // #endregion
 
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
@@ -189,13 +167,6 @@ export default function HomePage() {
   }, [])
 
   const openFooter = useCallback(() => {
-    // #region agent log
-    dbgLog('F1', 'openFooter()', {
-      activeIndex,
-      footerProgress: footerProgressRef.current,
-      isFooterOpen,
-    })
-    // #endregion
     setIsFooterOpen(true)
     setFooterProgressSafe(1)
     // Make the drawer feel "independent": always start from top when opening.
@@ -206,32 +177,11 @@ export default function HomePage() {
   }, [setFooterProgressSafe])
 
   const closeFooter = useCallback(() => {
-    // #region agent log
-    dbgLog('F1', 'closeFooter()', {
-      activeIndex,
-      footerProgress: footerProgressRef.current,
-      isFooterOpen,
-    })
-    // #endregion
     setIsFooterOpen(false)
     setFooterProgressSafe(0)
   }, [setFooterProgressSafe])
 
   const scrollToIndex = useCallback((nextIndex: number) => {
-    // #region agent log
-    dbgLog('T3', 'scrollToIndex called', {
-      activeIndex,
-      nextIndex,
-      incomingIndex,
-      direction,
-      isAnimatingRef: isAnimatingRef.current,
-      isAnimating,
-      isGesturing,
-      footerProgress: footerProgressRef.current,
-      isFooterOpen,
-    })
-    // #endregion
-
     // If footer overlay is visible/open, close it before navigating sections
     if (isFooterOpen || footerProgressRef.current > 0.02) {
       closeFooter()
@@ -273,17 +223,6 @@ export default function HomePage() {
     }
 
     const progress = gestureProgressRef.current
-    // #region agent log
-    dbgLog('T2', 'finalizeGesture', {
-      activeIndex,
-      lastSlideIndex,
-      dir,
-      progress,
-      incomingIndex,
-      isFooterOpen,
-      footerProgress: footerProgressRef.current,
-    })
-    // #endregion
     if (progress >= SNAP_THRESHOLD) {
       // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
@@ -306,15 +245,6 @@ export default function HomePage() {
     stopFinalizeTimer()
     finalizeTimerRef.current = window.setTimeout(() => {
       finalizeTimerRef.current = null
-      // #region agent log
-      dbgLog('T2', 'scheduleFinalize fired', {
-        delayMs,
-        activeIndex,
-        incomingIndex,
-        progress: gestureProgressRef.current,
-        dir: gestureDirectionRef.current,
-      })
-      // #endregion
       finalizeGesture()
     }, delayMs)
   }, [finalizeGesture, stopFinalizeTimer])
@@ -349,29 +279,6 @@ export default function HomePage() {
     const absDelta = Math.abs(deltaY)
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
-
-    // #region agent log
-    // Throttled: log at most once per ~120ms to avoid spam.
-    if ((now - (lastWheelSampleTsRef.current || 0)) > 120) {
-      lastWheelSampleTsRef.current = now
-      dbgLog('T0', 'wheel sample', {
-        activeIndex,
-        incomingIndex,
-        isAnimatingRef: isAnimatingRef.current,
-        gestureLocked: gestureLockedRef.current,
-        deltaMode: event.deltaMode,
-        deltaY,
-        absDelta,
-        absDeltaClamped,
-        wheelDt,
-        isLikelyTrackpad,
-        progress: gestureProgressRef.current,
-        dir: gestureDirectionRef.current,
-        footerProgress: footerProgressRef.current,
-        isFooterOpen,
-      })
-    }
-    // #endregion
 
     // If footer overlay is visible while we're not on the last slide (shouldn't happen),
     // give priority to closing it and do not allow section scroll.
@@ -466,16 +373,6 @@ export default function HomePage() {
     // Mouse wheel: переключаемся сразу с 1 тика (перфекционистично и без "накопления").
     // Trackpad остаётся "follow until release".
     if (!isLikelyTrackpad) {
-      // #region agent log
-      dbgLog('T1', 'wheel classified as mouse: immediate scrollToIndex', {
-        activeIndex,
-        incomingIndex,
-        dir,
-        deltaMode: event.deltaMode,
-        deltaY,
-        wheelDt,
-      })
-      // #endregion
       resetGesture()
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       scrollToIndex(nextIndex)
@@ -505,19 +402,6 @@ export default function HomePage() {
     gestureProgressRef.current = nextProgress
     if (isLikelyTrackpad) publishGestureProgressRaf()
     else publishGestureProgressImmediate()
-
-    // #region agent log
-    if (isLikelyTrackpad) {
-      dbgLog('T2', 'trackpad progress update', {
-        activeIndex,
-        incomingIndex,
-        wheelRange,
-        prevProgress,
-        nextProgress,
-        dir,
-      })
-    }
-    // #endregion
 
     // Trackpad: follow until "release" (idle), then commit/rollback
     if (isLikelyTrackpad) {
@@ -816,158 +700,12 @@ export default function HomePage() {
     }
   }, [location.hash, scrollToIndex])
 
-  // Lock page scroll while footer overlay is open (prevents accidental background scrolling)
-  useEffect(() => {
-    if (!isFooterOpen) return
-    // #region agent log
-    {
-      const headerEl = document.getElementById('main-header')
-      const headerRect = headerEl?.getBoundingClientRect()
-      dbgLog('A', 'footer-lock BEFORE apply', {
-        scrollY: window.scrollY,
-        innerWidth: window.innerWidth,
-        clientWidth: document.documentElement.clientWidth,
-        bodyClass: document.body.className,
-        bodyPos: getComputedStyle(document.body).position,
-        bodyOverflowY: getComputedStyle(document.body).overflowY,
-        headerLeft: headerRect?.left,
-        headerWidth: headerRect?.width,
-        vvWidth: (window as any).visualViewport?.width ?? null,
-        vvScale: (window as any).visualViewport?.scale ?? null,
-      })
-    }
-    // #endregion
-
-    // IMPORTANT: Do NOT apply body-level scroll locks here.
-    // We already prevent background scrolling via wheel/touch interception while the footer is open.
-    // Body-level locks were causing a measurable layout shift (header width change) in Chrome/Windows.
-
-    // #region agent log
-    requestAnimationFrame(() => {
-      const headerEl = document.getElementById('main-header')
-      const headerRect = headerEl?.getBoundingClientRect()
-      dbgLog('A', 'footer-lock AFTER apply (rAF)', {
-        scrollY: window.scrollY,
-        innerWidth: window.innerWidth,
-        clientWidth: document.documentElement.clientWidth,
-        bodyClass: document.body.className,
-        bodyPos: getComputedStyle(document.body).position,
-        bodyOverflowY: getComputedStyle(document.body).overflowY,
-        headerLeft: headerRect?.left,
-        headerWidth: headerRect?.width,
-        vvWidth: (window as any).visualViewport?.width ?? null,
-        vvScale: (window as any).visualViewport?.scale ?? null,
-        scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
-      })
-    })
-    // #endregion
-
-    return () => {
-      // #region agent log
-      {
-        const headerEl = document.getElementById('main-header')
-        const headerRect = headerEl?.getBoundingClientRect()
-        dbgLog('B', 'footer-lock BEFORE cleanup', {
-          scrollY: window.scrollY,
-          innerWidth: window.innerWidth,
-          clientWidth: document.documentElement.clientWidth,
-          bodyClass: document.body.className,
-          bodyPos: getComputedStyle(document.body).position,
-          bodyOverflowY: getComputedStyle(document.body).overflowY,
-          headerLeft: headerRect?.left,
-          headerWidth: headerRect?.width,
-          vvWidth: (window as any).visualViewport?.width ?? null,
-          vvScale: (window as any).visualViewport?.scale ?? null,
-          scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
-        })
-      }
-      // #endregion
-
-      // No body-level lock applied; nothing to revert for scroll.
-
-      // #region agent log
-      requestAnimationFrame(() => {
-        const headerEl = document.getElementById('main-header')
-        const headerRect = headerEl?.getBoundingClientRect()
-        dbgLog('B', 'footer-lock AFTER cleanup (rAF)', {
-          scrollY: window.scrollY,
-          innerWidth: window.innerWidth,
-          clientWidth: document.documentElement.clientWidth,
-          bodyClass: document.body.className,
-          bodyPos: getComputedStyle(document.body).position,
-          bodyOverflowY: getComputedStyle(document.body).overflowY,
-          headerLeft: headerRect?.left,
-          headerWidth: headerRect?.width,
-          vvWidth: (window as any).visualViewport?.width ?? null,
-          vvScale: (window as any).visualViewport?.scale ?? null,
-          scrollLockTop: getComputedStyle(document.documentElement).getPropertyValue('--scroll-lock-top').trim(),
-        })
-      })
-      // #endregion
-    }
-  }, [dbgLog, isFooterOpen])
-
   // Footer drawer can be partially opened during gesture. Use a separate class for styling/alignment
   // without necessarily locking the whole page scroll.
   useEffect(() => {
     const isActive = footerProgress > 0.02
-    // #region agent log
-    {
-      const headerEl = document.getElementById('main-header')
-      const headerRect = headerEl?.getBoundingClientRect()
-      dbgLog('F2', 'footer-drawer-active BEFORE toggle', {
-        footerProgress,
-        isActive,
-        bodyClass: document.body.className,
-        headerWidth: headerRect?.width,
-        headerLeft: headerRect?.left,
-      })
-    }
-    // #endregion
     if (isActive) document.body.classList.add('footer-drawer-active')
     else document.body.classList.remove('footer-drawer-active')
-    // #region agent log
-    requestAnimationFrame(() => {
-      const headerEl = document.getElementById('main-header')
-      const headerRect = headerEl?.getBoundingClientRect()
-      const drawerEl = footerDrawerRef.current
-      const drawerRect = drawerEl?.getBoundingClientRect()
-      const linksEl = drawerEl?.querySelector('[aria-label="Ссылки"]') as HTMLElement | null
-      const bottomEl = drawerEl?.querySelector('[aria-label="Социальные сети"]') as HTMLElement | null
-      const bottomRect = bottomEl?.getBoundingClientRect()
-      const headerStyle = headerEl ? getComputedStyle(headerEl) : null
-      const drawerStyle = drawerEl ? getComputedStyle(drawerEl) : null
-      dbgLog('F2', 'footer-drawer-active AFTER toggle (rAF)', {
-        footerProgress,
-        bodyClass: document.body.className,
-        headerWidth: headerRect?.width,
-        headerLeft: headerRect?.left,
-        headerCssWidth: headerStyle?.width ?? null,
-        headerCssLeft: headerStyle?.left ?? null,
-        headerCssRight: headerStyle?.right ?? null,
-        headerCssInset: (headerStyle as any)?.inset ?? null,
-        headerBoxSizing: headerStyle?.boxSizing ?? null,
-        innerWidth: window.innerWidth,
-        clientWidth: document.documentElement.clientWidth,
-        docScrollHeight: document.documentElement.scrollHeight,
-        docClientHeight: document.documentElement.clientHeight,
-        vvWidth: (window as any).visualViewport?.width ?? null,
-        vvScale: (window as any).visualViewport?.scale ?? null,
-        drawerHeight: drawerRect?.height ?? null,
-        drawerClientHeight: drawerEl?.clientHeight ?? null,
-        drawerScrollHeight: drawerEl?.scrollHeight ?? null,
-        drawerOverflowY: drawerStyle?.overflowY ?? null,
-        drawerVisible: drawerEl?.getAttribute('data-visible') ?? null,
-        linksClientHeight: linksEl?.clientHeight ?? null,
-        linksScrollHeight: linksEl?.scrollHeight ?? null,
-        linksScrollTop: linksEl?.scrollTop ?? null,
-        bottomTop: bottomRect?.top ?? null,
-        bottomBottom: bottomRect?.bottom ?? null,
-        drawerTop: drawerRect?.top ?? null,
-        drawerBottom: drawerRect?.bottom ?? null,
-      })
-    })
-    // #endregion
     return () => {
       document.body.classList.remove('footer-drawer-active')
     }
