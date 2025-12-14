@@ -360,7 +360,8 @@
   visibility: visible !important;
   z-index: 1 !important;
   pointer-events: none;
-  filter: brightness(calc(1 - 0.05 * var(--gesture-progress)));
+  /* Avoid GPU-heavy full-screen filters on trackpads (causes stutter on macOS). */
+  filter: none !important;
 }
 
 [data-gesture="true"][data-direction="prev"] .videoSection[data-state="prev"] {
@@ -380,5 +381,6 @@
   visibility: visible !important;
   z-index: 1 !important;
   pointer-events: none;
-  filter: brightness(calc(1 - 0.05 * var(--gesture-progress)));
+  /* Avoid GPU-heavy full-screen filters on trackpads (causes stutter on macOS). */
+  filter: none !important;
 }

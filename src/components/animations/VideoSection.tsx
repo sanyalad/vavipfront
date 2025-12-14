@@ -41,6 +41,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const nextVideoRef = useRef<{ webmLink: HTMLLinkElement; mp4Link: HTMLLinkElement } | null>(null)
   const primedRef = useRef(false)
   const lastVideoLogTsRef = useRef(0)
+  const isActiveRef = useRef(false)
 
   // #region agent log
   const vsLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
@@ -63,6 +64,11 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
 
   useImperativeHandle(forwardedRef, () => sectionRef.current as HTMLElement)
 
+  // Keep latest active flag for callbacks without re-creating them
+  useEffect(() => {
+    isActiveRef.current = !!isActive
+  }, [isActive])
+
   const primeVideo = useCallback(() => {
     if (primedRef.current) return
     const video = videoRef.current
@@ -73,14 +79,20 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     // Force browser to fetch & decode a bit so первый показ не моргает
     try {
       video.load()
-      const playPromise = video.play()
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise
-          .then(() => {
-            video.pause()
-            video.currentTime = 0
-          })
-          .catch(() => {})
+      // IMPORTANT: do not pause the *active* section video during priming;
+      // otherwise the first section can stay paused until the next scroll/state change.
+      if (!isActiveRef.current) {
+        const playPromise = video.play()
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => {
+              if (!isActiveRef.current) {
+                video.pause()
+                video.currentTime = 0
+              }
+            })
+            .catch(() => {})
+        }
       }
     } catch (e) {
       // ignore play/load errors (e.g., Safari throttling)
@@ -94,6 +106,13 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
 
     const handleCanPlay = () => {
       setIsVideoReady(true)
+      // If this is the active section, try to start playback immediately on readiness.
+      if (isActiveRef.current) {
+        const p = video.play()
+        if (p && typeof (p as Promise<void>).then === 'function') {
+          ;(p as Promise<void>).catch(() => {})
+        }
+      }
       // #region agent log
       vsLog('V2', 'video canplay', {
         id,
@@ -109,6 +128,13 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
       // Consider video ready if metadata is loaded (for faster initial check)
       if (!isVideoReady) {
         setIsVideoReady(true)
+      }
+      // If this is the active section, try to start playback immediately on readiness.
+      if (isActiveRef.current) {
+        const p = video.play()
+        if (p && typeof (p as Promise<void>).then === 'function') {
+          ;(p as Promise<void>).catch(() => {})
+        }
       }
       // #region agent log
       vsLog('V2', 'video loadedmetadata', {
