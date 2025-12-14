@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { productsApi } from '@/services/api'
 import { useCartStore } from '@/store/cartStore'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import styles from './Shop.module.css'
 
 export default function ShopPage() {
@@ -13,6 +12,7 @@ export default function ShopPage() {
   const [category, setCategory] = useState('')
   const [page, setPage] = useState(1)
   const { addItem, openCart } = useCartStore()
+  const lastAddedIdRef = useRef<number | null>(null)
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: ['products', { page, search, category }],
@@ -24,9 +24,16 @@ export default function ShopPage() {
     queryFn: productsApi.getCategories,
   })
 
+  const currentCategoryName = useMemo(() => {
+    if (!category) return null
+    const found = categories?.find((c: any) => c.slug === category)
+    return found?.name || null
+  }, [categories, category])
+
   const handleAddToCart = (product: any) => {
     addItem(product)
     openCart()
+    lastAddedIdRef.current = product.id
   }
 
   return (
@@ -38,38 +45,38 @@ export default function ShopPage() {
       exit={{ opacity: 0 }}
     >
       <div className={styles.container}>
-        {/* Header */}
-        <div className={styles.header}>
-          <h1 className={styles.title}>Магазин</h1>
-          <p className={styles.subtitle}>Премиальное оборудование для инженерных систем</p>
-        </div>
+        {/* Hero */}
+        <header className={styles.hero} aria-label="Каталог">
+          <div className={styles.heroInner}>
+            <h1 className={styles.title}>{currentCategoryName || 'Магазин'}</h1>
+            <p className={styles.subtitle}>Инженерное оборудование</p>
 
-        {/* Filters */}
-        <div className={styles.filters}>
-          <Input
-            placeholder="Поиск товаров..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            leftIcon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-            }
-          />
-          <select
-            className={styles.categorySelect}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">Все категории</option>
-            {categories?.map((cat) => (
-              <option key={cat.id} value={cat.slug}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className={styles.controls} aria-label="Фильтры каталога">
+              <div className={styles.search}>
+                <input
+                  className={styles.searchInput}
+                  placeholder="ПОИСК"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <span className={styles.searchIcon} aria-hidden="true" />
+              </div>
+
+              <select
+                className={styles.categorySelect}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">ВСЕ КАТЕГОРИИ</option>
+                {categories?.map((cat) => (
+                  <option key={cat.id} value={cat.slug}>
+                    {String(cat.name || '').toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </header>
 
         {/* Products Grid */}
         {isLoading ? (
@@ -86,54 +93,53 @@ export default function ShopPage() {
                   transition={{ delay: index * 0.05 }}
                   viewport={{ once: true, amount: 0.35 }}
                 >
-                  <Link to={`/shop/product/${product.slug}`} className={styles.cardImage}>
-                    {product.main_image ? (
-                      <img
-                        src={product.main_image}
-                        alt={product.name}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <div className={styles.placeholder}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                          <circle cx="8.5" cy="8.5" r="1.5"/>
-                          <polyline points="21 15 16 10 5 21"/>
-                        </svg>
-                      </div>
-                    )}
-                    {product.old_price && (
-                      <span className={styles.badge}>Скидка</span>
-                    )}
-                  </Link>
-                  <div className={styles.cardContent}>
-                    <Link to={`/shop/product/${product.slug}`} className={styles.cardTitle}>
-                      {product.name}
-                    </Link>
-                    {product.short_description && (
-                      <p className={styles.cardDescription}>{product.short_description}</p>
-                    )}
-                    <div className={styles.cardFooter}>
-                      <div className={styles.price}>
-                        <span className={styles.currentPrice}>
-                          {product.price.toLocaleString('ru-RU')} ₽
-                        </span>
-                        {product.old_price && (
-                          <span className={styles.oldPrice}>
-                            {product.old_price.toLocaleString('ru-RU')} ₽
-                          </span>
+                  <Link to={`/shop/product/${product.slug}`} className={styles.cardLink}>
+                    <div className={styles.cardTop}>
+                      <div className={styles.cardImage}>
+                        {product.main_image ? (
+                          <img
+                            src={product.main_image}
+                            alt={product.name}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <div className={styles.placeholder}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                              <circle cx="8.5" cy="8.5" r="1.5"/>
+                              <polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                          </div>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddToCart(product)}
-                        disabled={product.stock_quantity === 0}
-                      >
-                        {product.stock_quantity === 0 ? 'Нет в наличии' : 'В корзину'}
-                      </Button>
                     </div>
-                  </div>
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardTitle}>{product.name}</div>
+                      <div className={styles.cardFooter}>
+                        <div className={styles.price}>
+                          <span className={styles.currentPrice}>
+                            {product.price.toLocaleString('ru-RU')} ₽
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+
+                  <motion.button
+                    type="button"
+                    className={styles.addButton}
+                    aria-label={product.stock_quantity === 0 ? 'Нет в наличии' : 'Добавить в корзину'}
+                    disabled={product.stock_quantity === 0}
+                    whileTap={{ scale: 0.92, rotate: 10 }}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleAddToCart(product)
+                    }}
+                  >
+                    <span className={styles.addPlus}>+</span>
+                  </motion.button>
                 </motion.div>
               ))}
             </div>

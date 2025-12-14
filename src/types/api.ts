@@ -1,8 +1,9 @@
-import { User, Product, Feedback } from './models'
+import { User, Product, Feedback, Order } from './models'
 
 // Auth API types
 export interface LoginRequest {
-  email: string
+  email?: string
+  phone?: string
   password: string
 }
 
@@ -22,6 +23,29 @@ export interface AuthResponse {
 
 export interface RefreshResponse {
   access_token: string
+}
+
+export interface OtpSendRequest {
+  phone: string
+}
+
+export interface OtpSendResponse {
+  message: string
+  expires_in: number
+  dev_code?: string
+}
+
+export interface OtpVerifyRequest {
+  phone: string
+  code: string
+  first_name?: string
+}
+
+export interface OtpVerifyResponse extends AuthResponse {
+  auto_created?: boolean
+  dev_password?: string
+  code?: string
+  error?: string
 }
 
 // Products API types
@@ -66,6 +90,16 @@ export interface UpdateOrderStatusRequest {
   status?: string
   payment_status?: string
   admin_note?: string
+}
+
+export interface CreateOrderResponse {
+  order: Order
+  auto_account_created?: boolean
+  user?: User
+  access_token?: string
+  refresh_token?: string
+  code?: string
+  error?: string
 }
 
 // Feedback API types

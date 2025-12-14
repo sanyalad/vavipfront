@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { useCartStore } from '@/store/cartStore'
 import Button from '@/components/ui/Button'
 import styles from './CartSidebar.module.css'
@@ -8,7 +9,13 @@ export default function CartSidebar() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, totalPrice, clearCart } = useCartStore()
   const total = totalPrice()
 
-  return (
+  const portalTarget = typeof document !== 'undefined' ? document.body : null
+
+  if (!portalTarget) return null
+
+  // Important: Framer Motion's AnimatePresence does not reliably handle React portals as direct children.
+  // We render the portal first, and keep AnimatePresence INSIDE the portal.
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -31,7 +38,7 @@ export default function CartSidebar() {
           >
             <div className={styles.header}>
               <h2 className={styles.title}>Корзина</h2>
-              <button className={styles.closeButton} onClick={closeCart}>
+              <button className={styles.closeButton} onClick={closeCart} aria-label="Закрыть корзину">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
@@ -42,9 +49,9 @@ export default function CartSidebar() {
             {items.length === 0 ? (
               <div className={styles.empty}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <path d="M16 10a4 4 0 0 1-8 0"/>
+                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <path d="M16 10a4 4 0 0 1-8 0" />
                 </svg>
                 <p>Корзина пуста</p>
                 <Link to="/catalog/uzel-vvoda" onClick={closeCart}>
@@ -64,16 +71,10 @@ export default function CartSidebar() {
                         )}
                       </div>
                       <div className={styles.itemInfo}>
-                        <Link 
-                          to={`/shop/product/${item.product.slug}`} 
-                          className={styles.itemName}
-                          onClick={closeCart}
-                        >
+                        <Link to={`/shop/product/${item.product.slug}`} className={styles.itemName} onClick={closeCart}>
                           {item.product.name}
                         </Link>
-                        <p className={styles.itemPrice}>
-                          {item.product.price.toLocaleString('ru-RU')} ₽
-                        </p>
+                        <p className={styles.itemPrice}>{item.product.price.toLocaleString('ru-RU')} ₽</p>
                         <div className={styles.quantity}>
                           <button
                             onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
@@ -82,11 +83,7 @@ export default function CartSidebar() {
                             −
                           </button>
                           <span>{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                          >
-                            +
-                          </button>
+                          <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>+</button>
                         </div>
                       </div>
                       <button
@@ -95,8 +92,8 @@ export default function CartSidebar() {
                         aria-label="Удалить"
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         </svg>
                       </button>
                     </div>
@@ -122,7 +119,8 @@ export default function CartSidebar() {
           </motion.aside>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    portalTarget,
   )
 }
 

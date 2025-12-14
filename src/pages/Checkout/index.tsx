@@ -7,13 +7,14 @@ import { useNavigate } from 'react-router-dom'
 import { ordersApi } from '@/services/api'
 import { useCartStore } from '@/store/cartStore'
 import { useUIStore } from '@/store/uiStore'
+import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import styles from './Checkout.module.css'
 
 const checkoutSchema = z.object({
   customer_name: z.string().min(2, 'Введите имя'),
-  customer_email: z.string().email('Введите корректный email'),
+  customer_email: z.string().email('Введите корректный email').optional().or(z.literal('')),
   customer_phone: z.string().min(10, 'Введите корректный телефон'),
   delivery_address: z.string().min(10, 'Введите адрес доставки'),
   delivery_method: z.enum(['courier', 'pickup', 'post']),
@@ -26,7 +27,7 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const { items, totalPrice, clearCart } = useCartStore()
-  const { addToast } = useUIStore()
+  const { addToast, openAuthDrawer } = useUIStore()
   const total = totalPrice()
 
   const {
@@ -43,12 +44,29 @@ export default function CheckoutPage() {
 
   const createOrderMutation = useMutation({
     mutationFn: ordersApi.createOrder,
-    onSuccess: () => {
+    onSuccess: (payload) => {
+      if (payload?.access_token && payload?.refresh_token && payload?.user) {
+        useAuthStore.getState().login(payload.user, payload.access_token, payload.refresh_token)
+        if (payload.auto_account_created) {
+          addToast({
+            type: 'success',
+            message: 'Аккаунт создан автоматически. Пароль будет отправлен на номер телефона.',
+            duration: 5200,
+          })
+        }
+      }
       clearCart()
       addToast({ type: 'success', message: 'Заказ успешно оформлен!' })
       navigate(`/account/orders`)
     },
-    onError: () => {
+    onError: (err: any) => {
+      const status = err?.response?.status
+      const code = err?.response?.data?.code
+      if (status === 409 && code === 'PHONE_EXISTS') {
+        addToast({ type: 'info', message: 'Номер уже зарегистрирован — войдите, чтобы оформить заказ.' })
+        openAuthDrawer('login')
+        return
+      }
       addToast({ type: 'error', message: 'Ошибка при оформлении заказа' })
     },
   })
@@ -83,6 +101,10 @@ export default function CheckoutPage() {
             {/* Contact Info */}
             <section className={styles.section}>
               <h2>Контактные данные</h2>
+              <p className={styles.autoAccountNote}>
+                Если вы не авторизованы, аккаунт будет создан автоматически по номеру телефона.
+                Пароль придёт на телефон.
+              </p>
               <div className={styles.fields}>
                 <Input
                   label="Имя"

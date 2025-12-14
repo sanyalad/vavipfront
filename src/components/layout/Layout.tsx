@@ -2,6 +2,8 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
 import CartSidebar from '../features/Cart/CartSidebar'
+import AuthSidebar from '../auth/AuthSidebar'
+import SearchOverlay from '../search/SearchOverlay'
 import ToastContainer from '../ui/Toast/ToastContainer'
 import styles from './Layout.module.css'
 
@@ -19,6 +21,8 @@ export default function Layout() {
       </main>
       {!isHomePage && <Footer />}
       <CartSidebar />
+      <AuthSidebar />
+      <SearchOverlay />
       <ToastContainer />
     </div>
   )

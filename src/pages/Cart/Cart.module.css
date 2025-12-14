@@ -1,17 +1,21 @@
 .cart {
   min-height: 100vh;
-  padding: calc(80px + var(--spacing-2xl)) 0 var(--spacing-3xl);
+  padding: calc(var(--header-h) + 26px) 0 var(--spacing-3xl);
+  background: var(--color-bg);
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1290px;
   margin: 0 auto;
   padding: 0 var(--spacing-lg);
 }
 
 .title {
-  font-size: var(--font-size-3xl);
-  margin-bottom: var(--spacing-xl);
+  font-size: clamp(22px, 2.2vw, 34px);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
 }
 
 .empty {
@@ -41,31 +45,40 @@
 
 .content {
   display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: var(--spacing-2xl);
+  grid-template-columns: 1fr 380px;
+  gap: 28px;
 }
 
 .items {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 14px;
 }
 
 .item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg);
-  background-color: var(--color-bg-secondary);
-  border-radius: var(--radius-lg);
+  gap: 18px;
+  padding: 16px 16px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.item:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
 }
 
 .itemImage {
   width: 100px;
   height: 100px;
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   overflow: hidden;
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .itemImage img {
@@ -86,18 +99,20 @@
 }
 
 .itemName {
-  font-weight: 500;
+  font-weight: 600;
   display: block;
   margin-bottom: var(--spacing-xs);
-  color: var(--color-text-primary);
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .itemName:hover {
-  color: var(--color-accent);
+  opacity: 0.82;
 }
 
 .itemPrice {
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .quantity {
@@ -112,14 +127,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-tertiary);
-  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: var(--font-size-lg);
-  transition: background-color var(--transition-fast);
+  color: rgba(255, 255, 255, 0.85);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .quantity button:hover:not(:disabled) {
-  background-color: var(--color-accent);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
 }
 
 .quantity button:disabled {
@@ -135,6 +154,7 @@
   font-weight: 600;
   min-width: 100px;
   text-align: right;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .removeButton {
@@ -143,14 +163,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
-  border-radius: var(--radius-md);
-  transition: color var(--transition-fast), background-color var(--transition-fast);
+  color: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .removeButton:hover {
-  color: var(--color-error);
-  background-color: var(--color-bg-tertiary);
+  color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .removeButton svg {
@@ -159,34 +182,39 @@
 }
 
 .summary {
-  background-color: var(--color-bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  background-color: rgba(255, 255, 255, 0.02);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px;
   height: fit-content;
   position: sticky;
-  top: calc(80px + var(--spacing-lg));
+  top: calc(var(--header-h) + 14px);
 }
 
 .summary h2 {
-  font-size: var(--font-size-xl);
-  margin-bottom: var(--spacing-lg);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 14px;
 }
 
 .summaryRow {
   display: flex;
   justify-content: space-between;
-  padding: var(--spacing-sm) 0;
-  color: var(--color-text-secondary);
+  padding: 10px 0;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .summaryTotal {
   display: flex;
   justify-content: space-between;
-  padding: var(--spacing-lg) 0;
-  margin: var(--spacing-md) 0;
-  border-top: 1px solid var(--color-border);
-  font-size: var(--font-size-lg);
+  padding: 14px 0;
+  margin: 10px 0 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 16px;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .summary a {
@@ -221,5 +249,9 @@
     margin-top: var(--spacing-sm);
   }
 }
+
+
+
+
 
 

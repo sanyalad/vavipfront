@@ -1,13 +1,9 @@
-import { Suspense, lazy, useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import VideoSection from '@/components/animations/VideoSection'
+import Footer from '@/components/layout/Footer'
 import styles from './Home.module.css'
-
-// Lazy load below-the-fold components
-const ShopShowcase = lazy(() => import('@/components/shop/ShopShowcase'))
-const UzelPreview = lazy(() => import('@/components/landing/UzelPreview'))
-const Footer = lazy(() => import('@/components/layout/Footer'))
 
 const videoSections = [
   {
@@ -40,79 +36,48 @@ const videoSections = [
   },
 ]
 
-const WHEEL_THRESHOLD = 8
+const WHEEL_THRESHOLD = 1
 // Keep JS timing aligned with CSS animation (~550ms) with a small buffer
 const SCROLL_DEBOUNCE = 570
-const TOUCH_THRESHOLD = 42
-const RETURN_THRESHOLD = 420
+// When progress crosses this value we auto-commit to the next/prev section
+const SNAP_THRESHOLD = 0.5
+// If user stops the gesture before threshold, snap back after a short idle.
+// For a regular mouse wheel, ticks can have noticeable gaps, so keep this relatively high.
+const WHEEL_GESTURE_IDLE_RESET_MS = 520
+// Trackpads emit a stream of small wheel deltas; treat a short pause as "release".
+const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
+// Heuristic: small deltas usually mean trackpad (mouse wheels are more "steppy").
+const TRACKPAD_DELTA_CUTOFF = 55
+// Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
+const MOUSE_WHEEL_RANGE = 320
 
 export default function HomePage() {
   const location = useLocation()
   const prefersReducedMotion = useRef(false)
 
   const videoWrapperRef = useRef<HTMLDivElement | null>(null)
-  const shopSectionRef = useRef<HTMLDivElement | null>(null)
+  const afterStackRef = useRef<HTMLDivElement | null>(null)
   const touchStartY = useRef(0)
-  const isReturningFromFooterRef = useRef(false)
-  const lastActiveIndexBeforeCatalog = useRef<number | null>(null)
   const animationTimerRef = useRef<number | null>(null)
+  const gestureTimerRef = useRef<number | null>(null)
+  const finalizeTimerRef = useRef<number | null>(null)
+  const gestureProgressRef = useRef(0)
+  const gestureDirectionRef = useRef<'next' | 'prev' | null>(null)
+  const gestureLockedRef = useRef(false)
+
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
   const [incomingIndex, setIncomingIndex] = useState<number | null>(null)
   const [direction, setDirection] = useState<'next' | 'prev' | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
-  const [isReleased, setIsReleased] = useState(false)
-  const [isFirstVideoReady, setIsFirstVideoReady] = useState(false)
+  const [gestureProgress, setGestureProgress] = useState(0)
+  const [isGesturing, setIsGesturing] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
 
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
     [lastSlideIndex],
   )
-
-  const scrollToShopSection = useCallback(() => {
-    const shopEl = shopSectionRef.current
-    const top = shopEl ? shopEl.getBoundingClientRect().top + window.scrollY : 0
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top, behavior: 'smooth' })
-    })
-  }, [])
-
-  const scrollToSliderTop = useCallback(() => {
-    const wrapperTop = videoWrapperRef.current?.offsetTop ?? 0
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: wrapperTop, behavior: 'auto' })
-    })
-  }, [])
-
-  const ensureSliderAligned = useCallback((attempt = 0) => {
-    const wrapperTop = videoWrapperRef.current?.offsetTop ?? 0
-    const diff = Math.abs(window.scrollY - wrapperTop)
-    if (diff <= 1 || attempt > 4) return
-    window.scrollTo({ top: wrapperTop, behavior: 'auto' })
-    window.requestAnimationFrame(() => ensureSliderAligned(attempt + 1))
-  }, [])
-
-  const handleScrollLock = useCallback((lock: boolean) => {
-    if (prefersReducedMotion.current) return
-    // Don't lock scroll until first video is ready
-    if (lock && !isFirstVideoReady) return
-    if (lock) {
-      document.body.classList.add('spa-scroll-lock')
-    } else {
-      document.body.classList.remove('spa-scroll-lock')
-    }
-  }, [isFirstVideoReady])
-
-  // На мобильных сразу включаем нативный скролл (кастомный скролл дергается)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const isMobileViewport = window.matchMedia('(max-width: 900px)').matches
-    if (isMobileViewport) {
-      setIsReleased(true)
-      handleScrollLock(false)
-    }
-  }, [handleScrollLock])
 
   const stopAnimationTimer = useCallback(() => {
     if (animationTimerRef.current) {
@@ -121,6 +86,52 @@ export default function HomePage() {
     }
   }, [])
 
+  const stopGestureTimer = useCallback(() => {
+    if (gestureTimerRef.current) {
+      window.clearTimeout(gestureTimerRef.current)
+      gestureTimerRef.current = null
+    }
+  }, [])
+
+  const stopFinalizeTimer = useCallback(() => {
+    if (finalizeTimerRef.current) {
+      window.clearTimeout(finalizeTimerRef.current)
+      finalizeTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleGestureReset = useCallback((delayMs: number) => {
+    stopGestureTimer()
+    gestureTimerRef.current = window.setTimeout(() => {
+      // If we didn't cross the threshold, snap back
+      gestureLockedRef.current = false
+      gestureDirectionRef.current = null
+      gestureProgressRef.current = 0
+      setGestureProgress(0)
+      setIncomingIndex(null)
+      setDirection(null)
+      setIsGesturing(false)
+    }, delayMs)
+  }, [stopGestureTimer])
+
+  const publishGestureProgress = useCallback(() => {
+    // For mouse wheels we want immediate, per-tick updates (no RAF batching),
+    // otherwise the first visible movement can look like a jump.
+    setGestureProgress(gestureProgressRef.current)
+  }, [])
+
+  const resetGesture = useCallback(() => {
+    stopGestureTimer()
+    stopFinalizeTimer()
+    gestureLockedRef.current = false
+    gestureDirectionRef.current = null
+    gestureProgressRef.current = 0
+    setGestureProgress(0)
+    setIncomingIndex(null)
+    setDirection(null)
+    setIsGesturing(false)
+  }, [stopFinalizeTimer, stopGestureTimer])
+
   const scrollToIndex = useCallback((nextIndex: number) => {
     const safeIndex = clampIndex(nextIndex)
     if (safeIndex === activeIndex || isAnimating) return
@@ -128,6 +139,8 @@ export default function HomePage() {
     const nextDirection = safeIndex > activeIndex ? 'next' : 'prev'
 
     stopAnimationTimer()
+    // Make sure we exit gesture mode before the commit animation
+    setIsGesturing(false)
     setFromIndex(activeIndex)
     setIncomingIndex(safeIndex)
     setDirection(nextDirection)
@@ -143,73 +156,60 @@ export default function HomePage() {
     }, timeout)
   }, [activeIndex, clampIndex, isAnimating, stopAnimationTimer])
 
-  const releaseToCatalog = useCallback(() => {
-    if (isReleased) return
-    stopAnimationTimer()
-    lastActiveIndexBeforeCatalog.current = activeIndex
-    setDirection(null)
-    setIncomingIndex(null)
-    setIsAnimating(false)
-    setIsReleased(true)
-    handleScrollLock(false)
-    scrollToShopSection()
-  }, [activeIndex, handleScrollLock, isReleased, scrollToShopSection, stopAnimationTimer])
+  const finalizeGesture = useCallback(() => {
+    if (isAnimating) return
+    const dir = gestureDirectionRef.current
+    if (!dir) {
+      resetGesture()
+      return
+    }
 
-  const returnToSlider = useCallback((targetIndex?: number) => {
-    stopAnimationTimer()
-    // Восстанавливаем индекс, на котором были до перехода в каталог, или используем переданный
-    const indexToRestore = targetIndex !== undefined 
-      ? clampIndex(targetIndex) 
-      : (lastActiveIndexBeforeCatalog.current !== null 
-          ? clampIndex(lastActiveIndexBeforeCatalog.current) 
-          : lastSlideIndex)
-    
-    // Сначала обновляем состояние синхронно
-    setIsReleased(false)
-    setActiveIndex(indexToRestore)
-    setIncomingIndex(null)
-    setDirection(null)
-    setIsAnimating(false)
-    
-    // Скроллим наверх
-    scrollToSliderTop()
-    ensureSliderAligned()
-    
-    // Включаем блокировку скролла после небольшой задержки, чтобы скролл завершился
-    // Используем двойной requestAnimationFrame для гарантии завершения скролла
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        if (isFirstVideoReady) {
-          handleScrollLock(true)
-        }
-      })
-    })
-  }, [clampIndex, ensureSliderAligned, handleScrollLock, isFirstVideoReady, lastSlideIndex, scrollToSliderTop, stopAnimationTimer])
+    const progress = gestureProgressRef.current
+    if (progress >= SNAP_THRESHOLD) {
+      const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
+      resetGesture()
+      scrollToIndex(nextIndex)
+      return
+    }
+
+    resetGesture()
+  }, [activeIndex, clampIndex, isAnimating, resetGesture, scrollToIndex])
+
+  const scheduleFinalize = useCallback((delayMs: number) => {
+    stopFinalizeTimer()
+    finalizeTimerRef.current = window.setTimeout(() => {
+      finalizeTimerRef.current = null
+      finalizeGesture()
+    }, delayMs)
+  }, [finalizeGesture, stopFinalizeTimer])
 
   const handleWheel = useCallback((event: WheelEvent) => {
     if (prefersReducedMotion.current) return
 
-    const deltaY = event.deltaY || 0
-    if (Math.abs(deltaY) < WHEEL_THRESHOLD) return
+    // If header dropdown is open, let the dropdown scroll (do not hijack wheel for video sections).
+    if (document.body.classList.contains('dropdown-scroll-lock')) return
 
-    // В каталоге: возвращаемся в стек только если каталог полностью выше экрана
-    if (isReleased) {
-      const shopEl = shopSectionRef.current
-      if (!shopEl) return
-      
-      const shopRect = shopEl.getBoundingClientRect()
-      const shopTopViewport = shopRect.top
-      const returnThreshold = window.innerHeight + RETURN_THRESHOLD
-      
-      // Активируем кастомный скролл когда каталог уже ниже видимой области
-      if (deltaY < 0 && shopTopViewport >= returnThreshold) {
-        event.preventDefault()
-        returnToSlider()
-        return
-      }
-      // В каталоге не обрабатываем скролл для видеосекций
-      return
-    }
+    const wrapper = videoWrapperRef.current
+    if (!wrapper) return
+    const afterStack = afterStackRef.current
+
+    // Only hijack scroll when the hero stack actually fills the viewport.
+    // This prevents wheel events over the footer from still switching slides.
+    const wrapperRect = wrapper.getBoundingClientRect()
+    const wrapperTopAligned = Math.abs(wrapperRect.top) <= 2
+    const wrapperFillsViewport = wrapperRect.bottom >= window.innerHeight * 0.92
+    // Additionally, do NOT hijack while the footer area is even slightly visible.
+    // This lets native scroll bring the page back to the stack before we start switching slides.
+    const afterTop = afterStack?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+    const footerNotVisible = afterTop >= window.innerHeight - 2
+    const shouldHandle = wrapperTopAligned && wrapperFillsViewport && footerNotVisible
+    if (!shouldHandle) return
+
+    let deltaY = event.deltaY || 0
+    // Normalize delta across devices
+    if (event.deltaMode === 1) deltaY *= 16 // lines -> px-ish
+    if (event.deltaMode === 2) deltaY *= window.innerHeight // pages -> px-ish
+    if (Math.abs(deltaY) < WHEEL_THRESHOLD) return
 
     // После возврата из каталога убеждаемся, что мы не в состоянии анимации
     if (isAnimating) {
@@ -217,95 +217,140 @@ export default function HomePage() {
       return
     }
 
-    // Если на первом слайде и скролл вверх — ничего не делаем
-    if (deltaY < 0 && activeIndex === 0) {
-      event.preventDefault()
-      return
-    }
+    if (gestureLockedRef.current) return
 
-    // Если на последнем слайде — отпускаем к каталогу
-    if (deltaY > 0 && activeIndex === lastSlideIndex) {
-      event.preventDefault()
-      releaseToCatalog()
+    const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
+    const isLikelyTrackpad = event.deltaMode === 0 && Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF
+
+    // Boundary: allow native scroll (down from last slide to footer, etc.)
+    if ((dir === 'prev' && activeIndex === 0) || (dir === 'next' && activeIndex === lastSlideIndex)) {
+      resetGesture()
       return
     }
 
     event.preventDefault()
-    const nextIndex = clampIndex(activeIndex + (deltaY > 0 ? 1 : -1))
-    scrollToIndex(nextIndex)
-  }, [activeIndex, clampIndex, isAnimating, isReleased, lastSlideIndex, releaseToCatalog, returnToSlider, scrollToIndex])
+
+    // Mouse wheel: переключаемся сразу с 1 тика (перфекционистично и без "накопления").
+    // Trackpad остаётся "follow until release".
+    if (!isLikelyTrackpad) {
+      resetGesture()
+      const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
+      scrollToIndex(nextIndex)
+      return
+    }
+
+    // If direction changed, restart gesture
+    if (gestureDirectionRef.current !== dir) {
+      gestureDirectionRef.current = dir
+      gestureProgressRef.current = 0
+      setIsGesturing(true)
+      setFromIndex(activeIndex)
+      setIncomingIndex(clampIndex(activeIndex + (dir === 'next' ? 1 : -1)))
+      setDirection(dir)
+      setIsAnimating(false)
+      setGestureProgress(0)
+    }
+
+    stopGestureTimer()
+    stopFinalizeTimer()
+
+    const wheelRange = isLikelyTrackpad
+      ? Math.min(900, Math.max(260, window.innerHeight * 0.9))
+      : MOUSE_WHEEL_RANGE
+    const nextProgress = Math.min(1, gestureProgressRef.current + Math.abs(deltaY) / wheelRange)
+    gestureProgressRef.current = nextProgress
+    publishGestureProgress()
+
+    // Trackpad: follow until "release" (idle), then commit/rollback
+    if (isLikelyTrackpad) {
+      scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
+      return
+    }
+
+    // Mouse wheel: keep the older snappy behavior
+    if (nextProgress >= SNAP_THRESHOLD) {
+      gestureLockedRef.current = true
+      finalizeGesture()
+      return
+    }
+
+    scheduleGestureReset(WHEEL_GESTURE_IDLE_RESET_MS)
+  }, [
+    activeIndex,
+    clampIndex,
+    isAnimating,
+    lastSlideIndex,
+    finalizeGesture,
+    publishGestureProgress,
+    resetGesture,
+    scheduleFinalize,
+    scheduleGestureReset,
+    scrollToIndex,
+    stopFinalizeTimer,
+    stopGestureTimer,
+  ])
 
   const handleTouchStart = useCallback((event: TouchEvent) => {
-    if (isReleased) return
-    touchStartY.current = event.touches[0]?.clientY ?? 0
-  }, [])
-
-  const handleTouchEnd = useCallback((event: TouchEvent) => {
     if (prefersReducedMotion.current) return
-    const endY = event.changedTouches[0]?.clientY ?? 0
-    const diff = touchStartY.current - endY
-    if (Math.abs(diff) < TOUCH_THRESHOLD) return
-    const directionStep = diff > 0 ? 1 : -1
+    if (document.body.classList.contains('dropdown-scroll-lock')) return
+    if (isAnimating) return
+    gestureLockedRef.current = false
+    touchStartY.current = event.touches[0]?.clientY ?? 0
+    resetGesture()
+  }, [isAnimating, prefersReducedMotion, resetGesture])
 
-    // В каталоге: если каталог полностью выше экрана и свайп вверх — возвращаем в стек
-    if (isReleased) {
-      const shopEl = shopSectionRef.current
-      if (!shopEl) return
-      
-      const shopRect = shopEl.getBoundingClientRect()
-      const shopTopViewport = shopRect.top
-      const returnThreshold = window.innerHeight + RETURN_THRESHOLD
-      
-      // Активируем кастомный скролл когда каталог уже ниже видимой области
-      if (directionStep < 0 && shopTopViewport >= returnThreshold) {
-        returnToSlider()
-      }
+  const handleTouchMove = useCallback((event: TouchEvent) => {
+    if (prefersReducedMotion.current) return
+    if (document.body.classList.contains('dropdown-scroll-lock')) return
+    if (isAnimating) return
+    if (gestureLockedRef.current) return
+
+    const y = event.touches[0]?.clientY ?? 0
+    const diff = touchStartY.current - y
+    if (Math.abs(diff) < 6) return
+
+    const dir: 'next' | 'prev' = diff > 0 ? 'next' : 'prev'
+
+    // Boundary: allow native scroll when at ends
+    if ((dir === 'prev' && activeIndex === 0) || (dir === 'next' && activeIndex === lastSlideIndex)) {
+      resetGesture()
       return
     }
 
-    // Если на первом слайде и свайп вверх — ничего не делаем
-    if (directionStep < 0 && activeIndex === 0) {
-      return
+    event.preventDefault()
+
+    if (gestureDirectionRef.current !== dir) {
+      gestureDirectionRef.current = dir
+      setIsGesturing(true)
+      setFromIndex(activeIndex)
+      setIncomingIndex(clampIndex(activeIndex + (dir === 'next' ? 1 : -1)))
+      setDirection(dir)
+      setIsAnimating(false)
     }
 
-    if (directionStep > 0 && activeIndex === lastSlideIndex) {
-      releaseToCatalog()
-      return
-    }
+    const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
+    const nextProgress = Math.min(1, Math.abs(diff) / range)
+    gestureProgressRef.current = nextProgress
+    publishGestureProgress()
+  }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, publishGestureProgress, resetGesture, scrollToIndex])
 
-    const nextIndex = clampIndex(activeIndex + directionStep)
-    scrollToIndex(nextIndex)
-  }, [activeIndex, clampIndex, lastSlideIndex, releaseToCatalog, scrollToIndex])
+  const handleTouchEnd = useCallback(() => {
+    if (prefersReducedMotion.current) return
+    if (isAnimating) return
+    // Touch: commit/rollback only on release
+    gestureLockedRef.current = false
+    finalizeGesture()
+  }, [finalizeGesture, isAnimating, prefersReducedMotion])
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (document.body.classList.contains('dropdown-scroll-lock')) return
     if (isAnimating) return
     if (event.key === 'ArrowDown' || event.key === 'PageDown') {
-      if (isReleased) {
-        return
-      }
-      if (activeIndex === lastSlideIndex) {
-        releaseToCatalog()
-        return
-      }
+      if (activeIndex === lastSlideIndex) return
       event.preventDefault()
       scrollToIndex(activeIndex + 1)
     }
     if (event.key === 'ArrowUp' || event.key === 'PageUp') {
-      if (isReleased) {
-        const shopEl = shopSectionRef.current
-        if (shopEl) {
-          const shopRect = shopEl.getBoundingClientRect()
-          const shopTopViewport = shopRect.top
-          const returnThreshold = window.innerHeight + RETURN_THRESHOLD
-          
-          // Активируем кастомный скролл когда каталог уже ниже видимой области
-          if (shopTopViewport >= returnThreshold) {
-            event.preventDefault()
-            returnToSlider()
-          }
-        }
-        return
-      }
       // Если на первом слайде — ничего не делаем
       if (activeIndex === 0) {
         event.preventDefault()
@@ -314,58 +359,44 @@ export default function HomePage() {
       event.preventDefault()
       scrollToIndex(activeIndex - 1)
     }
-  }, [activeIndex, isAnimating, isReleased, lastSlideIndex, releaseToCatalog, returnToSlider, scrollToIndex])
+  }, [activeIndex, isAnimating, lastSlideIndex, scrollToIndex])
 
   // Wheel + touch listeners on window to avoid native scroll дергания
   useEffect(() => {
     window.addEventListener('wheel', handleWheel, { passive: false })
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchend', handleTouchEnd, { passive: true })
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       window.removeEventListener('wheel', handleWheel)
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchend', handleTouchEnd)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [handleKeyDown, handleTouchEnd, handleTouchStart, handleWheel])
+  }, [handleKeyDown, handleWheel])
+
+  // Touch listeners on wrapper (passive:false for touchmove to prevent native scroll)
+  useEffect(() => {
+    const wrapper = videoWrapperRef.current
+    if (!wrapper) return
+    wrapper.addEventListener('touchstart', handleTouchStart, { passive: true })
+    wrapper.addEventListener('touchmove', handleTouchMove, { passive: false })
+    wrapper.addEventListener('touchend', handleTouchEnd, { passive: true })
+    wrapper.addEventListener('touchcancel', handleTouchEnd, { passive: true })
+
+    return () => {
+      wrapper.removeEventListener('touchstart', handleTouchStart)
+      wrapper.removeEventListener('touchmove', handleTouchMove)
+      wrapper.removeEventListener('touchend', handleTouchEnd)
+      wrapper.removeEventListener('touchcancel', handleTouchEnd)
+    }
+  }, [handleTouchEnd, handleTouchMove, handleTouchStart])
 
   // Чистим таймер анимации при размонтировании
   useEffect(() => {
-    return () => stopAnimationTimer()
-  }, [stopAnimationTimer])
-
-  // Возврат к видеостекам, если пользователь проскроллил выше каталога
-  useEffect(() => {
-    if (!isReleased) {
-      isReturningFromFooterRef.current = false
-      return
+    return () => {
+      stopAnimationTimer()
+      stopGestureTimer()
+      stopFinalizeTimer()
     }
-
-    const handleScrollFromShop = () => {
-      if (isReturningFromFooterRef.current) return
-
-      const shopEl = shopSectionRef.current
-      if (!shopEl) return
-
-      const shopRect = shopEl.getBoundingClientRect()
-      const shopTopViewport = shopRect.top
-      const returnThreshold = window.innerHeight + RETURN_THRESHOLD
-
-      // Активируем кастомный скролл когда каталог уже ниже видимой области
-      if (shopTopViewport >= returnThreshold) {
-        isReturningFromFooterRef.current = true
-        returnToSlider()
-        window.setTimeout(() => {
-          isReturningFromFooterRef.current = false
-        }, 280)
-      }
-    }
-
-    window.addEventListener('scroll', handleScrollFromShop, { passive: true })
-    return () => window.removeEventListener('scroll', handleScrollFromShop)
-  }, [isReleased, returnToSlider])
+  }, [stopAnimationTimer, stopFinalizeTimer, stopGestureTimer])
 
   // Preload video metadata using link rel="preload" (more efficient than hidden DOM elements)
   useEffect(() => {
@@ -414,11 +445,6 @@ export default function HomePage() {
     const checkFirstVideoReady = () => {
       const firstVideo = videoWrapper.querySelector('[data-section-index="0"] video') as HTMLVideoElement
       if (firstVideo && firstVideo.readyState >= HTMLMediaElement.HAVE_METADATA) {
-        setIsFirstVideoReady(true)
-        // Now enable scroll lock if needed
-        if (!isReleased) {
-          handleScrollLock(true)
-        }
         return true
       }
       return false
@@ -432,10 +458,6 @@ export default function HomePage() {
     if (!firstVideo) return
 
     const handleReady = () => {
-      setIsFirstVideoReady(true)
-      if (!isReleased) {
-        handleScrollLock(true)
-      }
     }
 
     firstVideo.addEventListener('loadedmetadata', handleReady, { once: true })
@@ -445,7 +467,7 @@ export default function HomePage() {
       firstVideo.removeEventListener('loadedmetadata', handleReady)
       firstVideo.removeEventListener('canplay', handleReady)
     }
-  }, [isReleased, handleScrollLock])
+  }, [])
 
   // Header height variable + body scroll lock
   useEffect(() => {
@@ -459,44 +481,25 @@ export default function HomePage() {
 
     setHeaderHeight()
     window.addEventListener('resize', setHeaderHeight)
-    // Only lock scroll if first video is ready
-    if (isFirstVideoReady) {
-      handleScrollLock(true)
-    }
 
     return () => {
       window.removeEventListener('resize', setHeaderHeight)
-      handleScrollLock(false)
     }
-  }, [handleScrollLock, isFirstVideoReady])
+  }, [])
 
   // Hash-based navigation (/#catalog, /#shop, etc.)
   useEffect(() => {
     if (!location.hash) return
     const hash = location.hash.replace('#', '')
 
-    const fallbackMap: Record<string, string> = {
-      catalogue: 'catalog',
-      magazin: 'catalog',
-    }
-
-    const targetId = fallbackMap[hash] || hash
-
-    if (targetId === 'catalog') {
-      releaseToCatalog()
-      return
-    }
+    const targetId = hash
 
     const targetIndex = videoSections.findIndex((section) => section.id === targetId)
 
     if (targetIndex >= 0) {
-      if (isReleased) {
-        returnToSlider(targetIndex)
-      } else {
-        scrollToIndex(targetIndex)
-      }
+      scrollToIndex(targetIndex)
     }
-  }, [isReleased, location.hash, releaseToCatalog, returnToSlider, scrollToIndex])
+  }, [location.hash, scrollToIndex])
 
   // Во время анимации:
   // При скролле вниз: fromIndex -> prev (остается), activeIndex -> next (выезжает снизу)
@@ -523,8 +526,10 @@ export default function HomePage() {
       {/* Video Sections Wrapper */}
       <div
         ref={videoWrapperRef}
-        className={`${styles.videoSectionsWrapper} ${isReleased ? styles.released : ''}`}
+        className={styles.videoSectionsWrapper}
         data-direction={direction || 'idle'}
+        data-gesture={isGesturing ? 'true' : 'false'}
+        style={{ ['--gesture-progress' as string]: String(gestureProgress) }}
       >
         {videoSections.map((section, index) => {
           // Во время анимации next имеет приоритет над active
@@ -550,19 +555,9 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Uzel catalog preview */}
-      <Suspense fallback={<div style={{ minHeight: '400px' }} />}>
-        <UzelPreview />
-      </Suspense>
-
-      {/* Каталог + футер в обычном скролле */}
-      <div ref={shopSectionRef} id="catalog" className={styles.afterStack}>
-        <Suspense fallback={<div style={{ minHeight: '600px' }} />}>
-          <ShopShowcase />
-        </Suspense>
-        <Suspense fallback={null}>
-          <Footer />
-        </Suspense>
+      {/* Footer after the hero stack (normal native scroll) */}
+      <div ref={afterStackRef} className={styles.afterStack}>
+        <Footer />
       </div>
 
       {/* Mobile Navigation Strip */}
@@ -577,9 +572,6 @@ export default function HomePage() {
             {section.title}
           </button>
         ))}
-        <button className={styles.mobileNavItem} data-section="catalog" onClick={releaseToCatalog}>
-          Каталог
-        </button>
       </nav>
     </motion.div>
   )

@@ -1,0 +1,229 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.panel {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--header-h, 0px) + 14px);
+  transform: translateX(-50%);
+  width: min(1240px, calc(100vw - 36px));
+  height: calc(80vh - var(--header-h, 0px));
+  z-index: calc(var(--z-modal) + 1);
+  border-radius: 20px;
+  background: rgba(36, 34, 33, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  padding: 18px 18px 14px;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 14px;
+}
+
+.input {
+  height: 58px;
+  border-radius: 999px;
+  padding: 0 22px;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.actionBtn {
+  height: 58px;
+  border-radius: 999px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(10, 10, 10, 0.92);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: filter var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
+}
+
+.actionBtn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.left {
+  padding: 18px 18px 22px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: auto;
+}
+
+.right {
+  padding: 18px 18px 22px;
+  overflow: auto;
+}
+
+.blockTitle {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 14px;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 18px 0;
+}
+
+.list {
+  display: grid;
+  gap: 14px;
+}
+
+.term,
+.cat {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.92);
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  text-decoration: none;
+}
+
+.term:hover,
+.cat:hover {
+  opacity: 0.86;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.cardMedia {
+  position: relative;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.card:hover .cardMedia {
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+}
+
+.cardImg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 70% 65%, rgba(255, 255, 255, 0.08), transparent 42%),
+    rgba(10, 10, 10, 0.12);
+}
+
+.cardPlus {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 10, 10, 0.24);
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.85);
+  transition: transform var(--transition-fast), border-radius var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.card:hover .cardPlus {
+  border-radius: 6px;
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.cardTag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cardTitle {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.cardPrice {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+@media (max-width: 900px) {
+  .panel {
+    top: 12px;
+    height: calc(88vh);
+  }
+  .body {
+    grid-template-columns: 1fr;
+  }
+  .left {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .searchRow {
+    grid-template-columns: 1fr 120px;
+  }
+  .input,
+  .actionBtn {
+    height: 52px;
+  }
+}
+
+

@@ -14,12 +14,12 @@ const statusLabels: Record<OrderStatus, string> = {
 }
 
 const statusColors: Record<OrderStatus, string> = {
-  pending: '#f59e0b',
-  confirmed: '#3b82f6',
-  processing: '#8b5cf6',
-  shipped: '#06b6d4',
-  delivered: '#22c55e',
-  cancelled: '#ef4444',
+  pending: '#a5aab5',     // graphite
+  confirmed: '#c0c0c0',   // silver
+  processing: '#9aa0aa',  // graphite-alt
+  shipped: '#b6bcc7',     // light graphite
+  delivered: '#d1d5db',   // light silver
+  cancelled: '#7a7f88',   // dark graphite
 }
 
 export default function Orders() {
@@ -99,5 +99,9 @@ export default function Orders() {
     </div>
   )
 }
+
+
+
+
 
 

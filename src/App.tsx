@@ -25,7 +25,6 @@ import { useAuth } from './hooks/useAuth'
 
 // Components
 import ProtectedRoute from './components/auth/ProtectedRoute'
-import IntroLoader from './components/animations/IntroLoader'
 
 function App() {
   const location = useLocation()
@@ -33,7 +32,6 @@ function App() {
 
   return (
     <>
-      <IntroLoader />
       {!isLoading && (
         <AnimatePresence mode="wait">
           <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Загрузка...</div>}>
@@ -43,11 +41,8 @@ function App() {
                 <Route path="shop" element={<ShopPage />} />
                 <Route path="shop/product/:slug" element={<ProductPage />} />
                 <Route path="cart" element={<CartPage />} />
-                <Route path="checkout" element={
-                  <ProtectedRoute>
-                    <CheckoutPage />
-                  </ProtectedRoute>
-                } />
+                {/* Checkout is temporarily public until auth flow is fully wired with backend */}
+                <Route path="checkout" element={<CheckoutPage />} />
                 <Route path="contacts" element={<ContactsPage />} />
                 <Route path="catalog/uzel-vvoda" element={<UzelCatalogPage />} />
                 <Route path="catalog/uzel-vvoda/:categorySlug" element={<UzelCatalogPage />} />

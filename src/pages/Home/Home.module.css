@@ -12,8 +12,11 @@
   min-height: 100svh;
   min-height: 100dvh;
   --peek-height: 0px;
+  --gesture-progress: 0;
   overflow: hidden;
-  touch-action: none;
+  /* Allow native vertical panning at the edges; we preventDefault during custom gestures */
+  touch-action: pan-y;
+  overscroll-behavior: none;
   isolation: isolate;
   border: none;
   outline: none;

@@ -1,4 +1,4 @@
-/* ===== Bork-style "stacked cards" секции ===== */
+/* ===== Stacked sections ===== */
 .videoSection {
   position: absolute;
   inset: 0;
@@ -333,4 +333,57 @@
       opacity 0.6s ease,
       transform 0.8s ease;
   }
+}
+
+/* ===== Interactive gesture progress (touch / trackpad) ===== */
+/* The wrapper (`Home.videoSectionsWrapper`) sets:
+   - data-gesture="true|false"
+   - data-direction="next|prev|idle"
+   - CSS var --gesture-progress in [0..1]
+*/
+[data-gesture="true"] .videoSection {
+  transition: none !important;
+  animation: none !important;
+}
+
+[data-gesture="true"][data-direction="next"] .videoSection[data-state="next"] {
+  /* Follow finger/trackpad: from below -> to center */
+  transform: translateY(calc(150% * (1 - var(--gesture-progress)))) scale(
+    calc(0.98 + 0.02 * var(--gesture-progress))
+  ) !important;
+  opacity: calc(0.65 + 0.35 * var(--gesture-progress)) !important;
+  visibility: visible !important;
+  z-index: 5 !important;
+  pointer-events: none;
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.32);
+}
+
+[data-gesture="true"][data-direction="next"] .videoSection[data-state="prev"] {
+  /* Current stays in place, slightly dims as the next comes in */
+  transform: translateY(0) scale(1) !important;
+  opacity: calc(1 - 0.08 * var(--gesture-progress)) !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  pointer-events: none;
+  filter: brightness(calc(1 - 0.05 * var(--gesture-progress)));
+}
+
+[data-gesture="true"][data-direction="prev"] .videoSection[data-state="prev"] {
+  /* Incoming previous: from above -> to center */
+  transform: translateY(calc(-100% * (1 - var(--gesture-progress)))) scale(1) !important;
+  opacity: calc(0.75 + 0.25 * var(--gesture-progress)) !important;
+  visibility: visible !important;
+  z-index: 5 !important;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+[data-gesture="true"][data-direction="prev"] .videoSection[data-state="next"] {
+  /* Current active moves down proportionally */
+  transform: translateY(calc(100% * var(--gesture-progress))) scale(1) !important;
+  opacity: calc(1 - 0.08 * var(--gesture-progress)) !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  pointer-events: none;
+  filter: brightness(calc(1 - 0.05 * var(--gesture-progress)));
 }

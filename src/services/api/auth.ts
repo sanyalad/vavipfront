@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { AuthResponse, LoginRequest, RegisterRequest, RefreshResponse } from '@/types'
+import { AuthResponse, LoginRequest, RegisterRequest, RefreshResponse, OtpSendRequest, OtpSendResponse, OtpVerifyRequest, OtpVerifyResponse } from '@/types'
 import { User } from '@/types'
 
 export const authApi = {
@@ -38,6 +38,20 @@ export const authApi = {
       new_password: newPassword,
     })
   },
+
+  otpSend: async (data: OtpSendRequest): Promise<OtpSendResponse> => {
+    const response = await apiClient.post<OtpSendResponse>('/auth/otp/send', data)
+    return response.data
+  },
+
+  otpVerify: async (data: OtpVerifyRequest): Promise<OtpVerifyResponse> => {
+    const response = await apiClient.post<OtpVerifyResponse>('/auth/otp/verify', data)
+    return response.data
+  },
 }
+
+
+
+
 
 

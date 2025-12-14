@@ -83,13 +83,13 @@ const ShopShowcase = forwardRef<HTMLElement, { className?: string }>(function Sh
     <section ref={ref} className={sectionClass} id="home-shop-catalog" aria-labelledby="shop-showcase-title">
       <div className={styles.container}>
         <div className={styles.header}>
-          <p className={styles.kicker}>BORK / SAN TECH</p>
+          <p className={styles.kicker}>SAN TECH</p>
           <h2 id="shop-showcase-title" className={styles.title}>
             Каталог инженерных узлов
           </h2>
           <p className={styles.lead}>
             Макеты узлов и готовых решений для квартир и коттеджей. Пока заглушки — визуализируем компоновку,
-            обвес и оформление под Bork.
+            компоновку и оформление.
           </p>
           <div className={styles.actions}>
             <Link to="/shop" className={styles.primaryCta}>

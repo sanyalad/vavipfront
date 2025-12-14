@@ -1,17 +1,25 @@
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { productsApi } from '@/services/api'
 import { useCartStore } from '@/store/cartStore'
 import Button from '@/components/ui/Button'
+import { getFallbackProductBySlug } from '@/data/fallbackProducts'
 import styles from './Product.module.css'
 
 export default function ProductPage() {
+  const navigate = useNavigate()
   const { slug } = useParams<{ slug: string }>()
   const [quantity, setQuantity] = useState(1)
   const [selectedImage, setSelectedImage] = useState(0)
+  const [activeTab, setActiveTab] = useState<'about' | 'spec'>('about')
   const { addItem, openCart } = useCartStore()
+
+  const fallbackProduct = useMemo(() => {
+    if (!slug) return null
+    return getFallbackProductBySlug(slug)
+  }, [slug])
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ['product', slug],
@@ -19,7 +27,7 @@ export default function ProductPage() {
     enabled: !!slug,
   })
 
-  if (isLoading) {
+  if (isLoading && !fallbackProduct) {
     return (
       <div className={styles.loading}>
         <div className={styles.spinner} />
@@ -27,7 +35,9 @@ export default function ProductPage() {
     )
   }
 
-  if (error || !product) {
+  const resolvedProduct = product || fallbackProduct
+
+  if ((error || !resolvedProduct) && !fallbackProduct) {
     return (
       <div className={styles.error}>
         <h1>Товар не найден</h1>
@@ -37,12 +47,23 @@ export default function ProductPage() {
   }
 
   const handleAddToCart = () => {
-    addItem(product, quantity)
+    if (!resolvedProduct) return
+    addItem(resolvedProduct, quantity)
     openCart()
   }
 
-  const images = product.images || []
-  const mainImage = images[selectedImage]?.url || product.main_image
+  const handleBuyOneClick = () => {
+    if (!resolvedProduct) return
+    addItem(resolvedProduct, quantity)
+    navigate('/checkout')
+  }
+
+  const images = resolvedProduct?.images || []
+  const mainImage = images[selectedImage]?.url || resolvedProduct?.main_image
+  const skuLabel = useMemo(() => {
+    if (!resolvedProduct?.sku) return null
+    return String(resolvedProduct.sku).toUpperCase()
+  }, [resolvedProduct?.sku])
 
   return (
     <motion.div
@@ -51,114 +72,147 @@ export default function ProductPage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className={styles.container}>
-        <div className={styles.content}>
-          {/* Gallery */}
-          <div className={styles.gallery}>
-            <div className={styles.mainImage}>
+      <div className={styles.pdp}>
+        <div className={styles.pdpLayout}>
+          {/* Gallery (left) */}
+          <div className={styles.galleryArea}>
+            <div className={styles.galleryFrame}>
               {mainImage ? (
-                <img src={mainImage} alt={product.name} />
+                <img className={styles.galleryImage} src={mainImage} alt={resolvedProduct?.name || 'Товар'} />
               ) : (
                 <div className={styles.placeholder}>Нет изображения</div>
               )}
             </div>
+
             {images.length > 1 && (
-              <div className={styles.thumbnails}>
+              <div className={styles.thumbnails} aria-label="Галерея">
                 {images.map((img, index) => (
                   <button
                     key={img.id}
-                    className={`${styles.thumbnail} ${index === selectedImage ? styles.active : ''}`}
+                    type="button"
+                    className={`${styles.thumbnail} ${index === selectedImage ? styles.thumbnailActive : ''}`}
                     onClick={() => setSelectedImage(index)}
+                    aria-label={`Изображение ${index + 1}`}
                   >
-                    <img src={img.url} alt={`${product.name} ${index + 1}`} />
+                    <img src={img.url} alt="" aria-hidden="true" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Info */}
-          <div className={styles.info}>
-            {product.category && (
-              <span className={styles.category}>{product.category.name}</span>
-            )}
-            <h1 className={styles.title}>{product.name}</h1>
-            
-            {product.sku && (
-              <p className={styles.sku}>Артикул: {product.sku}</p>
-            )}
+          {/* Details (right) */}
+          <aside className={styles.detailsArea} aria-label="Информация о товаре">
+            <div className={styles.detailsInner}>
+              <div className={styles.metaTop}>
+                <span className={styles.metaLine}>{resolvedProduct?.category?.name || 'Каталог'}</span>
+                {skuLabel && <span className={styles.metaCode}>{skuLabel}</span>}
+              </div>
 
-            <div className={styles.price}>
-              <span className={styles.currentPrice}>
-                {product.price.toLocaleString('ru-RU')} ₽
-              </span>
-              {product.old_price && (
-                <span className={styles.oldPrice}>
-                  {product.old_price.toLocaleString('ru-RU')} ₽
-                </span>
-              )}
-            </div>
+              <h1 className={styles.title}>{resolvedProduct?.name}</h1>
 
-            <div className={styles.stock}>
-              {product.stock_quantity > 0 ? (
-                <span className={styles.inStock}>В наличии</span>
-              ) : (
-                <span className={styles.outOfStock}>Нет в наличии</span>
-              )}
-            </div>
+              <div className={styles.priceRow}>
+                <span className={styles.currentPrice}>{resolvedProduct?.price?.toLocaleString('ru-RU')} ₽</span>
+                {resolvedProduct?.old_price && (
+                  <span className={styles.oldPrice}>{resolvedProduct.old_price.toLocaleString('ru-RU')} ₽</span>
+                )}
+              </div>
 
-            {product.short_description && (
-              <p className={styles.shortDescription}>{product.short_description}</p>
-            )}
+              <div className={styles.actionsRow}>
+                <div className={styles.qty}>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                    aria-label="Уменьшить количество"
+                  >
+                    −
+                  </button>
+                  <span aria-label="Количество">{quantity}</span>
+                  <button type="button" onClick={() => setQuantity((q) => q + 1)} aria-label="Увеличить количество">
+                    +
+                  </button>
+                </div>
 
-            <div className={styles.actions}>
-              <div className={styles.quantity}>
+                <div className={styles.buyWrap}>
+                  <Button
+                    size="lg"
+                    fullWidth
+                    onClick={handleAddToCart}
+                    disabled={!!resolvedProduct && resolvedProduct.stock_quantity === 0}
+                    className={styles.buyPrimary}
+                  >
+                    {!!resolvedProduct && resolvedProduct.stock_quantity === 0 ? 'Нет в наличии' : 'В корзину'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    onClick={handleBuyOneClick}
+                    className={styles.buyOneClick}
+                    disabled={!!resolvedProduct && resolvedProduct.stock_quantity === 0}
+                  >
+                    Купить в 1 клик
+                  </Button>
+                </div>
+              </div>
+
+              <div className={styles.tabs} role="tablist" aria-label="Информация">
                 <button
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1}
+                  type="button"
+                  className={`${styles.tab} ${activeTab === 'about' ? styles.tabActive : ''}`}
+                  onClick={() => setActiveTab('about')}
+                  role="tab"
+                  aria-selected={activeTab === 'about'}
                 >
-                  −
+                  Описание
                 </button>
-                <span>{quantity}</span>
-                <button onClick={() => setQuantity((q) => q + 1)}>+</button>
+                <button
+                  type="button"
+                  className={`${styles.tab} ${activeTab === 'spec' ? styles.tabActive : ''}`}
+                  onClick={() => setActiveTab('spec')}
+                  role="tab"
+                  aria-selected={activeTab === 'spec'}
+                >
+                  Характеристики
+                </button>
               </div>
-              <Button
-                size="lg"
-                fullWidth
-                onClick={handleAddToCart}
-                disabled={product.stock_quantity === 0}
-              >
-                Добавить в корзину
-              </Button>
+
+              {activeTab === 'about' ? (
+                <div className={styles.tabPanel} role="tabpanel">
+                  {resolvedProduct?.description ? (
+                    <div dangerouslySetInnerHTML={{ __html: resolvedProduct.description }} />
+                  ) : (
+                    <p className={styles.muted}>Описание появится позже.</p>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.tabPanel} role="tabpanel">
+                  {resolvedProduct?.attributes && resolvedProduct.attributes.length > 0 ? (
+                    <dl className={styles.specList}>
+                      {resolvedProduct.attributes.map((attr) => (
+                        <div key={attr.id} className={styles.specRow}>
+                          <dt>{attr.name}</dt>
+                          <dd>{attr.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className={styles.muted}>Характеристики появятся позже.</p>
+                  )}
+                </div>
+              )}
             </div>
-
-            {/* Attributes */}
-            {product.attributes && product.attributes.length > 0 && (
-              <div className={styles.attributes}>
-                <h3>Характеристики</h3>
-                <dl>
-                  {product.attributes.map((attr) => (
-                    <div key={attr.id} className={styles.attribute}>
-                      <dt>{attr.name}</dt>
-                      <dd>{attr.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-          </div>
+          </aside>
         </div>
-
-        {/* Description */}
-        {product.description && (
-          <div className={styles.description}>
-            <h2>Описание</h2>
-            <div dangerouslySetInnerHTML={{ __html: product.description }} />
-          </div>
-        )}
       </div>
     </motion.div>
   )
 }
+
+
+
+
 
 

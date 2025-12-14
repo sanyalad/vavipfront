@@ -1,56 +1,63 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import styles from './IntroLoader.module.css'
 
-// Timeline (короче и с плавным затуханием)
-const LOGO_DISPLAY_TIME = 620
-const LOGO_FADE_TIME = 300
-const CURTAIN_TIME = 360
+// Timeline: logo appears, flies up to the header zone, then content reveals.
+const LOGO_DISPLAY_TIME = 900
+const LOGO_FLY_TIME = 900
+const CONTENT_REVEAL_DELAY = 200
+
+const REDUCED_LOGO_DISPLAY_TIME = 120
+const REDUCED_LOGO_FLY_TIME = 220
+const REDUCED_CONTENT_REVEAL_DELAY = 0
 
 export default function IntroLoader() {
   const { isIntroComplete, setIntroComplete } = useUIStore()
-  const [phase, setPhase] = useState<'logo' | 'fade' | 'curtain' | 'hidden'>('logo')
+  const [phase, setPhase] = useState<'logo' | 'fly' | 'hidden'>('logo')
   const loaderRef = useRef<HTMLDivElement>(null)
-  const hasStartedRef = useRef(false)
   const timersRef = useRef<number[]>([])
 
-  useEffect(() => {
-    // Предотвращаем повторный запуск
-    if (hasStartedRef.current || isIntroComplete) return
-    hasStartedRef.current = true
+  // Use layout effect so the intro locks and overlay are applied before first paint (no "blink").
+  useLayoutEffect(() => {
+    // Drive the intro purely off local component state.
+    // `isIntroComplete` in the store can be true due to previous sessions/HMR; it must not disable the intro.
+    if (phase !== 'logo') return
 
-    // Проверка reduced motion
+    // Reduced motion: keep the intro (client request), but make it shorter/simpler.
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (prefersReducedMotion) {
-      setPhase('hidden')
-      setIntroComplete(true)
-      return
-    }
 
     // Блокируем скролл
     document.body.classList.add('intro-active')
+    document.body.classList.remove('intro-revealed')
+
+    const logoDisplay = prefersReducedMotion ? REDUCED_LOGO_DISPLAY_TIME : LOGO_DISPLAY_TIME
+    const logoFly = prefersReducedMotion ? REDUCED_LOGO_FLY_TIME : LOGO_FLY_TIME
+    const revealDelay = prefersReducedMotion ? REDUCED_CONTENT_REVEAL_DELAY : CONTENT_REVEAL_DELAY
 
     // Timeline анимации
-    const fadeTimer = window.setTimeout(() => {
-      setPhase('fade')
-    }, LOGO_DISPLAY_TIME)
-    const curtainTimer = window.setTimeout(() => {
-      setPhase('curtain')
-    }, LOGO_DISPLAY_TIME + LOGO_FADE_TIME)
+    const flyTimer = window.setTimeout(() => {
+      setPhase('fly')
+      window.setTimeout(() => {
+        document.body.classList.add('intro-revealed')
+      }, revealDelay)
+    }, logoDisplay)
+
     const hideTimer = window.setTimeout(() => {
       setPhase('hidden')
       document.body.classList.remove('intro-active')
+      document.body.classList.add('intro-revealed')
       setIntroComplete(true)
       window.scrollTo(0, 0)
-    }, LOGO_DISPLAY_TIME + LOGO_FADE_TIME + CURTAIN_TIME)
+    }, logoDisplay + logoFly)
 
-    timersRef.current = [fadeTimer, curtainTimer, hideTimer]
+    timersRef.current = [flyTimer, hideTimer]
 
     return () => {
       timersRef.current.forEach(clearTimeout)
+      timersRef.current = []
       document.body.classList.remove('intro-active')
     }
-  }, [isIntroComplete, setIntroComplete])
+  }, [phase, setIntroComplete])
 
   // Fallback timeout
   useEffect(() => {
@@ -65,12 +72,11 @@ export default function IntroLoader() {
     return () => clearTimeout(fallbackTimer)
   }, [phase, setIntroComplete])
 
-  if (isIntroComplete && phase === 'hidden') return null
+  if (phase === 'hidden') return null
 
   const loaderClasses = [
     styles.loader,
-    phase === 'fade' && styles.fadeLogo,
-    phase === 'curtain' && styles.curtainUp,
+    phase === 'fly' && styles.flyUp,
     phase === 'hidden' && styles.hidden,
   ].filter(Boolean).join(' ')
 
@@ -84,6 +90,7 @@ export default function IntroLoader() {
         timersRef.current.forEach(clearTimeout)
         setPhase('hidden')
         document.body.classList.remove('intro-active')
+        document.body.classList.add('intro-revealed')
         setIntroComplete(true)
       }}
     >
@@ -93,7 +100,6 @@ export default function IntroLoader() {
         className={styles.logo}
         aria-hidden="true"
       />
-      <div className={styles.curtain} />
     </div>
   )
 }

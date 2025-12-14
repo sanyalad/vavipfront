@@ -16,7 +16,7 @@
   will-change: transform;
 }
 
-/* Header скрыт при скролле вниз (Bork-style) */
+/* Header скрыт при скролле вниз */
 .headerHidden {
   transform: translateY(-100%);
   opacity: 0;
@@ -228,14 +228,17 @@
   left: 0;
   right: 0;
   top: var(--header-h, 0px);
-  height: calc(100vh - var(--header-h, 0px));
+  /* 80% of viewport height for the dropdown area; leave 20% gap to the bottom */
+  height: calc(80vh - var(--header-h, 0px));
+  max-height: calc(100vh - var(--header-h, 0px));
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-6px);
+  transform: translateY(0);
   transition: opacity var(--transition-medium), transform var(--transition-medium);
   z-index: var(--z-dropdown);
   overflow-y: auto;
   pointer-events: none;
+  background: var(--color-bg-secondary);
 }
 
 .dropdownVisible {
@@ -247,32 +250,33 @@
 .dropdownOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
+  /* Dropdown should match header color */
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .dropdownContainer {
   position: relative;
-  max-width: 1280px;
-  margin: 0 auto;
-    padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-2xl);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   min-height: 100%;
 }
 
 .dropdownContent {
   margin: 0;
-  padding: var(--spacing-lg);
-  background: rgba(12, 12, 12, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   display: grid;
   gap: var(--spacing-lg);
 }
 
 .dropdownLayout {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) 360px;
   gap: var(--spacing-lg);
   align-items: start;
 }

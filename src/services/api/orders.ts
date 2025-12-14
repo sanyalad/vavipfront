@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { Order, CreateOrderRequest, UpdateOrderStatusRequest } from '@/types'
+import { Order, CreateOrderRequest, UpdateOrderStatusRequest, CreateOrderResponse } from '@/types'
 
 export const ordersApi = {
   getOrders: async (all?: boolean): Promise<Order[]> => {
@@ -14,8 +14,8 @@ export const ordersApi = {
     return response.data
   },
 
-  createOrder: async (data: CreateOrderRequest): Promise<Order> => {
-    const response = await apiClient.post<Order>('/orders', data)
+  createOrder: async (data: CreateOrderRequest): Promise<CreateOrderResponse> => {
+    const response = await apiClient.post<CreateOrderResponse>('/orders', data)
     return response.data
   },
 
@@ -34,5 +34,9 @@ export const ordersApi = {
     return response.data
   },
 }
+
+
+
+
 
 

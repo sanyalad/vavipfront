@@ -13,9 +13,158 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
+    <!-- Intro (runs before React mounts) -->
+    <div id="intro-static" class="intro-static" aria-hidden="true">
+      <img class="intro-static__logo" src="/images/logo.png" alt="" />
+    </div>
     <div id="root"></div>
+    <style>
+      html.intro-static-active #root {
+        opacity: 0;
+        transform: translateY(12px);
+        filter: blur(2px);
+      }
+      html.intro-static-done #root {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+        transition:
+          opacity 0.6s ease 0.18s,
+          transform 0.7s cubic-bezier(0.23, 0.9, 0.15, 1) 0.18s,
+          filter 0.6s ease 0.18s;
+      }
+
+      .intro-static {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: #0a0a0a;
+        pointer-events: all;
+        opacity: 1;
+        animation: introFadeOut 0.5s ease forwards;
+        animation-delay: 2.05s;
+      }
+
+      .intro-static__logo {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: clamp(120px, 20vw, 200px);
+        height: auto;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+        animation: introLogoIn 0.45s cubic-bezier(0.25, 0.85, 0.2, 1) forwards;
+        animation-delay: 0.05s;
+        will-change: transform, opacity;
+      }
+
+      @keyframes introLogoIn {
+        from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+        to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      }
+
+      .intro-static.intro-static--fly .intro-static__logo {
+        animation:
+          introLogoIn 0.45s cubic-bezier(0.25, 0.85, 0.2, 1) forwards,
+          introLogoFlyToAnchor 0.9s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+        animation-delay: 0.05s, 0.95s;
+      }
+
+      @keyframes introLogoFlyToAnchor {
+        from {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+        to {
+          opacity: 1;
+          transform: translate(
+            calc(-50% + var(--intro-dx, 0px)),
+            calc(-50% + var(--intro-dy, -220px))
+          ) scale(var(--intro-scale, 0.62));
+        }
+      }
+
+      @keyframes introFadeOut {
+        to { opacity: 0; pointer-events: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .intro-static { animation-delay: 0.35s; }
+        .intro-static__logo {
+          animation-duration: 0.2s;
+          animation-delay: 0.01s;
+        }
+        .intro-static.intro-static--fly .intro-static__logo {
+          animation-duration: 0.2s, 0.25s;
+          animation-delay: 0.01s, 0.22s;
+        }
+      }
+    </style>
+    <script>
+      (function () {
+        var root = document.documentElement;
+        root.classList.add('intro-static-active');
+        var intro = document.getElementById('intro-static');
+        var logo = intro && intro.querySelector('.intro-static__logo');
+
+        function computeAnchorVars() {
+          if (!intro || !logo) return false;
+          var anchor = document.querySelector('[data-intro-anchor="logo"] img') || document.querySelector('[data-intro-anchor="logo"]');
+          if (!anchor || !anchor.getBoundingClientRect) return false;
+
+          var a = anchor.getBoundingClientRect();
+          var l = logo.getBoundingClientRect();
+
+          var vcx = window.innerWidth / 2;
+          var vcy = window.innerHeight / 2;
+          var acx = a.left + a.width / 2;
+          var acy = a.top + a.height / 2;
+
+          var dx = acx - vcx;
+          var dy = acy - vcy;
+
+          // Scale the intro logo to match header logo width (clamped for safety)
+          var s = l.width ? (a.width / l.width) : 0.62;
+          s = Math.max(0.35, Math.min(0.9, s));
+
+          intro.style.setProperty('--intro-dx', dx.toFixed(2) + 'px');
+          intro.style.setProperty('--intro-dy', dy.toFixed(2) + 'px');
+          intro.style.setProperty('--intro-scale', s.toFixed(4));
+          return true;
+        }
+
+        // Start fly after a short "hold", but ensure we have anchor vars first.
+        window.setTimeout(function () {
+          if (intro) {
+            // try a few frames to catch React render
+            var tries = 0;
+            (function tick() {
+              tries++;
+              var ok = computeAnchorVars();
+              if (ok || tries > 60) {
+                intro.classList.add('intro-static--fly');
+                return;
+              }
+              requestAnimationFrame(tick);
+            })();
+          }
+        }, 750);
+
+        // Total timeline: hold + fly + fade
+        window.setTimeout(function () {
+          root.classList.remove('intro-static-active');
+          root.classList.add('intro-static-done');
+          var el = document.getElementById('intro-static');
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        }, 2900);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
+
+
+
 
 

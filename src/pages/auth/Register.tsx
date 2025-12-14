@@ -1,121 +1,57 @@
-import { motion } from 'framer-motion'
-import { Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useAuth } from '@/hooks/useAuth'
+import { useEffect, useMemo, useRef } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useUIStore } from '@/store/uiStore'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import styles from './Auth.module.css'
 
-const registerSchema = z.object({
-  email: z.string().email('Введите корректный email'),
-  password: z.string().min(8, 'Минимум 8 символов'),
-  confirmPassword: z.string(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  phone: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Пароли не совпадают',
-  path: ['confirmPassword'],
-})
-
-type RegisterFormData = z.infer<typeof registerSchema>
-
 export default function RegisterPage() {
-  const { register: registerUser, registerLoading } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { openAuthDrawer, isAuthDrawerOpen } = useUIStore()
+  const hasOpenedRef = useRef(false)
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-  })
+  const returnTo = useMemo(() => {
+    const fromPath = (location.state as any)?.from?.pathname as string | undefined
+    if (!fromPath) return '/'
+    if (fromPath.startsWith('/checkout')) return '/cart'
+    if (fromPath.startsWith('/account')) return '/'
+    if (fromPath.startsWith('/dashboard')) return '/'
+    if (fromPath === '/login' || fromPath === '/register') return '/'
+    return fromPath
+  }, [location.state])
 
-  const onSubmit = (data: RegisterFormData) => {
-    registerUser({
-      email: data.email,
-      password: data.password,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      phone: data.phone,
-    })
-  }
+  useEffect(() => {
+    openAuthDrawer('register')
+    hasOpenedRef.current = true
+  }, [openAuthDrawer])
+
+  useEffect(() => {
+    if (!hasOpenedRef.current) return
+    if (!isAuthDrawerOpen) {
+      navigate(returnTo, { replace: true })
+    }
+  }, [isAuthDrawerOpen, navigate, returnTo])
 
   return (
-    <motion.div
-      className={styles.auth}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
+    <div className={styles.auth}>
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
             <h1>Регистрация</h1>
-            <p>Создайте аккаунт</p>
+            <p>Окно регистрации открылось справа. Если вы закрыли его — можно открыть снова.</p>
           </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
-            <div className={styles.row}>
-              <Input
-                label="Имя"
-                placeholder="Иван"
-                error={errors.first_name?.message}
-                {...register('first_name')}
-              />
-              <Input
-                label="Фамилия"
-                placeholder="Иванов"
-                error={errors.last_name?.message}
-                {...register('last_name')}
-              />
-            </div>
-            <Input
-              label="Email"
-              type="email"
-              placeholder="example@email.com"
-              error={errors.email?.message}
-              {...register('email')}
-            />
-            <Input
-              label="Телефон"
-              type="tel"
-              placeholder="+7 (999) 123-45-67"
-              error={errors.phone?.message}
-              {...register('phone')}
-            />
-            <Input
-              label="Пароль"
-              type="password"
-              placeholder="••••••••"
-              error={errors.password?.message}
-              {...register('password')}
-            />
-            <Input
-              label="Подтвердите пароль"
-              type="password"
-              placeholder="••••••••"
-              error={errors.confirmPassword?.message}
-              {...register('confirmPassword')}
-            />
-
-            <Button type="submit" fullWidth isLoading={registerLoading}>
-              Зарегистрироваться
+          <div className={styles.form}>
+            <Button fullWidth onClick={() => openAuthDrawer('register')}>
+              Открыть регистрацию
             </Button>
-          </form>
-
-          <div className={styles.footer}>
-            <p>
-              Уже есть аккаунт?{' '}
-              <Link to="/login">Войти</Link>
-            </p>
+            <Link to="/" style={{ display: 'block' }}>
+              <Button variant="ghost" fullWidth>
+                На главную
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
-
-

@@ -37,6 +37,13 @@
   margin-bottom: var(--spacing-lg);
 }
 
+.autoAccountNote {
+  margin-top: -6px;
+  margin-bottom: var(--spacing-md);
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+}
+
 .fields {
   display: flex;
   flex-direction: column;
@@ -149,5 +156,9 @@
     position: static;
   }
 }
+
+
+
+
 
 

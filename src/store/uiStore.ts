@@ -24,6 +24,17 @@ interface UIState {
   toasts: Toast[]
   addToast: (toast: Omit<Toast, 'id'>) => void
   removeToast: (id: string) => void
+
+  // Auth drawer (login/register as a sidebar)
+  isAuthDrawerOpen: boolean
+  authDrawerMode: 'login' | 'register'
+  openAuthDrawer: (mode?: 'login' | 'register') => void
+  closeAuthDrawer: () => void
+
+  // Search overlay (BORK-like)
+  isSearchOpen: boolean
+  openSearch: () => void
+  closeSearch: () => void
   
   // Theme (for future)
   theme: 'dark' | 'light'
@@ -73,6 +84,17 @@ export const useUIStore = create<UIState>((set, get) => ({
       toasts: state.toasts.filter(t => t.id !== id),
     }))
   },
+
+  // Auth drawer
+  isAuthDrawerOpen: false,
+  authDrawerMode: 'login',
+  openAuthDrawer: (mode = 'login') => set({ isAuthDrawerOpen: true, authDrawerMode: mode }),
+  closeAuthDrawer: () => set({ isAuthDrawerOpen: false }),
+
+  // Search overlay
+  isSearchOpen: false,
+  openSearch: () => set({ isSearchOpen: true }),
+  closeSearch: () => set({ isSearchOpen: false }),
   
   // Theme
   theme: 'dark',
@@ -80,5 +102,9 @@ export const useUIStore = create<UIState>((set, get) => ({
     theme: state.theme === 'dark' ? 'light' : 'dark',
   })),
 }))
+
+
+
+
 
 
