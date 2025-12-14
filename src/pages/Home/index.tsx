@@ -695,21 +695,9 @@ export default function HomePage() {
   // Lock page scroll while footer overlay is open (prevents accidental background scrolling)
   useEffect(() => {
     if (!isFooterOpen) return
-    const scrollbarGap = Math.max(0, window.innerWidth - document.documentElement.clientWidth)
-    document.documentElement.style.setProperty('--scrollbar-gap', `${scrollbarGap}px`)
     document.body.classList.add('footer-drawer-lock')
     return () => {
       document.body.classList.remove('footer-drawer-lock')
-      // If no other scroll-lock is active, clear compensation
-      const stillLocked =
-        document.body.classList.contains('dropdown-scroll-lock') ||
-        document.body.classList.contains('spa-scroll-lock')
-      if (!stillLocked) {
-        document.documentElement.style.setProperty('--scrollbar-gap', '0px')
-      } else {
-        const gap2 = Math.max(0, window.innerWidth - document.documentElement.clientWidth)
-        document.documentElement.style.setProperty('--scrollbar-gap', `${gap2}px`)
-      }
     }
   }, [isFooterOpen])
 

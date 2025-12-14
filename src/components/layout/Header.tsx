@@ -107,19 +107,12 @@ export default function Header() {
   useEffect(() => {
     if (!body) return
     if (activeMenu) {
-      const scrollbarGap = Math.max(0, window.innerWidth - document.documentElement.clientWidth)
-      document.documentElement.style.setProperty('--scrollbar-gap', `${scrollbarGap}px`)
       body.classList.add('dropdown-scroll-lock')
     } else {
       body.classList.remove('dropdown-scroll-lock')
-      // Clear only if no other lock is active (footer drawer, etc.)
-      const stillLocked = document.body.classList.contains('footer-drawer-lock') || document.body.classList.contains('spa-scroll-lock')
-      if (!stillLocked) document.documentElement.style.setProperty('--scrollbar-gap', '0px')
     }
     return () => {
       body.classList.remove('dropdown-scroll-lock')
-      const stillLocked = document.body.classList.contains('footer-drawer-lock') || document.body.classList.contains('spa-scroll-lock')
-      if (!stillLocked) document.documentElement.style.setProperty('--scrollbar-gap', '0px')
     }
   }, [activeMenu, body])
 

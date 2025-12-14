@@ -104,6 +104,9 @@ html, body {
 html {
   scroll-behavior: smooth;
   scroll-padding-top: var(--header-h, 0px);
+  /* Prevent layout shift when scroll-lock toggles overflow hidden (Chrome/Windows) */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 /* ===== Scrollbar ===== */
@@ -278,14 +281,7 @@ body.dropdown-scroll-lock {
   overflow: hidden !important;
 }
 
-/* Prevent header/logo horizontal shift when the scrollbar disappears */
-body.footer-drawer-lock #main-header,
-body.dropdown-scroll-lock #main-header,
-body.spa-scroll-lock #main-header {
-  /* Inset shorthand on header can be finicky; setting width is more stable across browsers */
-  width: calc(100% - var(--scrollbar-gap)) !important;
-  right: auto !important;
-}
+/* With scrollbar-gutter: stable, we don't need header-specific compensation. */
 
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
