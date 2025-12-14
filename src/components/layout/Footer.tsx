@@ -15,6 +15,42 @@ export default function Footer() {
       <div className={styles.borderTop} />
       <div className={styles.inner}>
         <div className={styles.top}>
+          <nav className={styles.navGrid} aria-label="Ссылки">
+            <ul className={styles.navList}>
+              <li className={styles.navTitle}>КОНФИДЕНЦИАЛЬНОСТЬ И УСЛОВИЯ</li>
+              <li>
+                <Link to="/privacy">ПОЛИТИКА ОБРАБОТКИ И ЗАЩИТЫ ПЕРСОНАЛЬНЫХ ДАННЫХ И ИСПОЛЬЗОВАНИЯ COOKIE</Link>
+              </li>
+              <li>
+                <Link to="/terms">ДОГОВОР ОФЕРТЫ BIM</Link>
+              </li>
+              <li>
+                <Link to="/warranty">ГАРАНТИЯ</Link>
+              </li>
+              <li>
+                <Link to="/design-contract">ДОГОВОР НА ПРОЕКТИРОВАНИЕ BIM/ПРОЕКТИРОВАНИЕ ИНЖЕНЕРНЫХ СИСТЕМ</Link>
+              </li>
+            </ul>
+
+            <ul className={styles.navList}>
+              <li className={styles.navTitle}>СОТРУДНИЧЕСТВО</li>
+              <li>
+                <Link to="/for-designers">ДИЗАЙНЕРАМ И АРХИТЕКТОРАМ</Link>
+              </li>
+              <li>
+                <Link to="/for-builders">РУКОВОДИТЕЛЯМ СТРОИТЕЛЬНЫХ КОМПАНИЙ И ПРОЕКТИРОВАНИЮ BIM/ОВ</Link>
+              </li>
+              <li>
+                <Link to="/for-distributors">ДИСТРИБЬЮТОРАМ</Link>
+              </li>
+              <li>
+                <Link to="/for-visual">ДЛЯ ВИЗУАЛА</Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+        <div className={styles.bottom}>
           <div className={styles.brandRow} aria-label="VAVIP">
             <div className={styles.brand}>
               <img src="/images/vavip_logo_text.png" alt="Vavip" />
@@ -34,11 +70,8 @@ export default function Footer() {
               ))}
             </div>
           </div>
-        </div>
 
-        <div className={styles.bottom}>
-          <span className={styles.copy}>© 2024 VAVIP</span>
-          <span className={styles.copyMuted}>ALL RIGHTS RESERVED</span>
+          <span className={styles.copy}>© 2024 VAVIP. All Rights Reserved</span>
         </div>
       </div>
     </footer>

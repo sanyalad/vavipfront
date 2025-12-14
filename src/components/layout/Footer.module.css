@@ -12,14 +12,45 @@
   max-width: calc(1290px + 32px);
   margin: 0 auto;
   /* много воздуха */
-  padding: 72px 16px;
+  padding: 96px 16px 56px;
 }
 
 .top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
   padding: 0;
+}
+
+.navGrid {
+  display: grid;
+  grid-template-columns: minmax(320px, 520px) minmax(320px, 520px);
+  gap: 120px;
+  align-items: start;
+}
+
+.navList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.navTitle {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.navList a {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.navList a:hover {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .brandRow {
@@ -46,15 +77,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 0;
   background: transparent;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
+  transition: opacity var(--transition-fast);
 }
 
 .socialIcon:hover {
-  background: rgba(255, 255, 255, 0.06);
-  opacity: 0.95;
+  opacity: 0.92;
 }
 
 .socialIcon img {
@@ -65,32 +95,35 @@
 }
 
 .bottom {
-  margin-top: 64px;
-  padding-top: 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  margin-top: 88px;
+  padding-top: 0;
+  border-top: none;
   display: flex;
-  gap: 10px;
+  gap: 24px;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
 .copy {
   font-size: 12px;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.copyMuted {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: none;
 }
 
 @media (max-width: 900px) {
+  .inner {
+    padding: 64px 16px 42px;
+  }
+
+  .navGrid {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+
   .bottom {
     flex-direction: column;
     align-items: flex-start;
+    gap: 18px;
   }
 }

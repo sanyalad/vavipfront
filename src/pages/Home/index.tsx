@@ -48,6 +48,8 @@ const WHEEL_GESTURE_IDLE_RESET_MS = 520
 const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
 // Heuristic: small deltas usually mean trackpad (mouse wheels are more "steppy").
 const TRACKPAD_DELTA_CUTOFF = 55
+// macOS trackpads can emit larger deltas, but usually in a fast stream.
+const TRACKPAD_TIME_CUTOFF_MS = 50
 // Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
 const MOUSE_WHEEL_RANGE = 320
 
@@ -65,6 +67,7 @@ export default function HomePage() {
   const gestureDirectionRef = useRef<'next' | 'prev' | null>(null)
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
+  const lastWheelTsRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -230,11 +233,14 @@ export default function HomePage() {
     if (event.deltaMode === 1) deltaY *= 16 // lines -> px-ish
     if (event.deltaMode === 2) deltaY *= window.innerHeight // pages -> px-ish
     if (Math.abs(deltaY) < WHEEL_THRESHOLD) return
+    const now = performance.now()
+    const wheelDt = now - (lastWheelTsRef.current || 0)
+    lastWheelTsRef.current = now
+    const isLikelyTrackpad = event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_TIME_CUTOFF_MS)
 
     // Footer overlay: on the last slide, wheel down opens footer; wheel up closes footer.
     if (activeIndex === lastSlideIndex) {
       const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
-      const isLikelyTrackpad = event.deltaMode === 0 && Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF
 
       // If footer is open:
       if (isFooterOpen) {
@@ -292,7 +298,6 @@ export default function HomePage() {
     if (gestureLockedRef.current) return
 
     const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
-    const isLikelyTrackpad = event.deltaMode === 0 && Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF
 
     // Boundary: allow native scroll (down from last slide to footer, etc.)
     if (dir === 'prev' && activeIndex === 0) {
