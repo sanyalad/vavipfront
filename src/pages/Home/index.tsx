@@ -70,6 +70,7 @@ export default function HomePage() {
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
   const lastWheelTsRef = useRef(0)
+  const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -199,10 +200,13 @@ export default function HomePage() {
       setIncomingIndex(null)
       setIsAnimating(false)
       isAnimatingRef.current = false
+      // Mark when we *actually* arrived at the last slide.
+      // Used to prevent "wild scroll" from opening the footer while transitioning into it.
+      lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
       setDirection(null)
       animationTimerRef.current = null
     }, timeout)
-  }, [activeIndex, clampIndex, closeFooter, isFooterOpen, stopAnimationTimer])
+  }, [activeIndex, clampIndex, closeFooter, isFooterOpen, lastSlideIndex, stopAnimationTimer])
 
   const finalizeGesture = useCallback(() => {
     if (isAnimatingRef.current) return
@@ -216,8 +220,10 @@ export default function HomePage() {
     if (progress >= SNAP_THRESHOLD) {
       // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
+        const canOpenFooter = lastSlideArrivedAtRef.current > 0
+          && (performance.now() - lastSlideArrivedAtRef.current) > 220
         resetGesture()
-        openFooter()
+        if (canOpenFooter) openFooter()
         return
       }
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
@@ -279,6 +285,8 @@ export default function HomePage() {
     if (activeIndex === lastSlideIndex) {
       const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
       const footerInGesture = footerProgressRef.current > 0.02 && !isFooterOpen
+      const canOpenFooter = lastSlideArrivedAtRef.current > 0
+        && (now - lastSlideArrivedAtRef.current) > 220
 
       // If footer is open:
       if (isFooterOpen) {
@@ -314,6 +322,8 @@ export default function HomePage() {
       // Footer closed, wheel down should open it.
       if (dir === 'next') {
         event.preventDefault()
+        // Prevent "wild scroll" from opening footer while user is still arriving to the last slide.
+        if (!canOpenFooter) return
         if (!isLikelyTrackpad) {
           openFooter()
           return
@@ -327,7 +337,7 @@ export default function HomePage() {
         setIsGesturing(true)
         finalizeTimerRef.current = window.setTimeout(() => {
           finalizeTimerRef.current = null
-          if (footerProgressRef.current >= SNAP_THRESHOLD) openFooter()
+          if (footerProgressRef.current >= SNAP_THRESHOLD && canOpenFooter) openFooter()
           else closeFooter()
           setIsGesturing(false)
         }, TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
@@ -701,6 +711,16 @@ export default function HomePage() {
       document.body.classList.remove('footer-drawer-active')
     }
   }, [footerProgress])
+
+  // Safety: footer overlay must ONLY exist on the last slide.
+  // If we leave the last slide for any reason (including wild scroll), force-close it.
+  useEffect(() => {
+    if (activeIndex === lastSlideIndex) return
+    lastSlideArrivedAtRef.current = 0
+    if (isFooterOpen || footerProgressRef.current > 0.02) {
+      closeFooter()
+    }
+  }, [activeIndex, closeFooter, isFooterOpen, lastSlideIndex])
 
   // Во время анимации:
   // При скролле вниз: fromIndex -> prev (остается), activeIndex -> next (выезжает снизу)

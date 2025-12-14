@@ -30,7 +30,7 @@
 
 .divider {
   margin-top: 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .navList {
@@ -133,6 +133,9 @@
 :global(body.footer-drawer-active) .top {
   flex: 1;
   overflow: auto;
+  /* Important for flex layouts: allow the scrollable area to shrink,
+     otherwise it can push the bottom block outside the 40vh drawer. */
+  min-height: 0;
   padding-right: 6px; /* keep scrollbar off the text a bit */
 }
 
