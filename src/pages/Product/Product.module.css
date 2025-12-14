@@ -194,7 +194,11 @@
   flex: 0 0 auto;
   width: 0%;
   height: 52px;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.05;
+  font-size: 12px;
+  letter-spacing: 0.04em;
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
@@ -213,14 +217,14 @@
 
 .buyWrap:hover .buyPrimary,
 .buyWrap:focus-within .buyPrimary {
-  width: 55%;
+  width: 52%;
 }
 
 .buyWrap:hover .buyOneClick,
 .buyWrap:focus-within .buyOneClick {
   opacity: 1;
   pointer-events: auto;
-  width: 45%;
+  width: 48%;
   padding-left: var(--spacing-xl);
   padding-right: var(--spacing-xl);
   border-left-width: 1px;
