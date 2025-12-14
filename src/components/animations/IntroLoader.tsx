@@ -12,7 +12,7 @@ const REDUCED_LOGO_FLY_TIME = 220
 const REDUCED_CONTENT_REVEAL_DELAY = 0
 
 export default function IntroLoader() {
-  const { isIntroComplete, setIntroComplete } = useUIStore()
+  const { setIntroComplete } = useUIStore()
   const [phase, setPhase] = useState<'logo' | 'fly' | 'hidden'>('logo')
   const loaderRef = useRef<HTMLDivElement>(null)
   const timersRef = useRef<number[]>([])
@@ -77,7 +77,6 @@ export default function IntroLoader() {
   const loaderClasses = [
     styles.loader,
     phase === 'fly' && styles.flyUp,
-    phase === 'hidden' && styles.hidden,
   ].filter(Boolean).join(' ')
 
   return (

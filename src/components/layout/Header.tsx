@@ -18,7 +18,7 @@ const menuItems = [
 
 export default function Header() {
   const { isAuthenticated } = useAuth()
-  const { totalItems, toggleCart } = useCartStore()
+  const { totalItems } = useCartStore()
   const { openAuthDrawer, addToast, openSearch } = useUIStore()
   const { direction, scrollY } = useScroll()
   const [isHidden, setIsHidden] = useState(false)
