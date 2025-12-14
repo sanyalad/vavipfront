@@ -46,8 +46,10 @@ const SNAP_THRESHOLD = 0.5
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
 // Trackpads emit a stream of small wheel deltas; treat a short pause as "release".
 const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
-// Heuristic: small deltas usually mean trackpad (mouse wheels are more "steppy").
-const TRACKPAD_DELTA_CUTOFF = 55
+// Heuristic: on macOS touchpads the *first* wheel event after a pause can be moderately large (e.g. 64),
+// which must still be treated as trackpad to avoid "one swipe = one full section" misclassification.
+// Keep this below typical mouse wheel ticks (~100/120) so mouse still snaps on one tick.
+const TRACKPAD_DELTA_CUTOFF = 85
 // Trackpad vs mouse: treat a burst of wheel events as trackpad-like even if deltas are large.
 // This prevents "one tick = one full section" on touchpads and avoids skipping on fast scroll.
 const TRACKPAD_STREAM_CUTOFF_MS = 180
