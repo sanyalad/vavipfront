@@ -9,10 +9,10 @@
 
 .inner {
   width: 100%;
-  max-width: calc(1290px + 32px);
+  /* a bit wider / more "air", while still fitting the 40vh drawer */
+  max-width: calc(1440px + 48px);
   margin: 0 auto;
-  /* много воздуха */
-  padding: 76px 16px 26px;
+  padding: 44px 24px 18px;
 }
 
 .top {
@@ -21,8 +21,8 @@
 
 .navGrid {
   display: grid;
-  grid-template-columns: minmax(320px, 520px) minmax(320px, 520px);
-  gap: 120px;
+  grid-template-columns: minmax(280px, 560px) minmax(280px, 560px);
+  gap: 96px;
   align-items: start;
 }
 
@@ -117,7 +117,7 @@
 
 @media (max-width: 900px) {
   .inner {
-    padding: 52px 16px 20px;
+    padding: 34px 16px 16px;
   }
 
   .navGrid {

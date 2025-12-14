@@ -108,9 +108,9 @@
   right: 0;
   bottom: 0;
   z-index: 1260;
-  /* Let the drawer size to content; cap it to a reasonable max-height */
-  height: auto;
-  max-height: min(78vh, 720px);
+  /* Client request: drawer height is always 40% of viewport */
+  height: 40vh;
+  max-height: 40vh;
   transform: translateY(calc((1 - var(--footer-progress, 0)) * 100%));
   transition: transform var(--transition-medium);
   background: var(--color-bg);
@@ -128,8 +128,8 @@
 
 @media (max-width: 900px) {
   .footerDrawer {
-    height: auto;
-    max-height: min(86vh, 760px);
+    height: 40vh;
+    max-height: 40vh;
     left: 0;
     right: 0;
     bottom: 0;

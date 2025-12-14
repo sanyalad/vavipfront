@@ -65,6 +65,7 @@ export default function HomePage() {
   const gestureTimerRef = useRef<number | null>(null)
   const finalizeTimerRef = useRef<number | null>(null)
   const gestureProgressRef = useRef(0)
+  const gestureRafRef = useRef<number | null>(null)
   const gestureDirectionRef = useRef<'next' | 'prev' | null>(null)
   const gestureLockedRef = useRef(false)
   const footerProgressRef = useRef(0)
@@ -108,6 +109,13 @@ export default function HomePage() {
     }
   }, [])
 
+  const stopGestureRaf = useCallback(() => {
+    if (gestureRafRef.current) {
+      window.cancelAnimationFrame(gestureRafRef.current)
+      gestureRafRef.current = null
+    }
+  }, [])
+
   const scheduleGestureReset = useCallback((delayMs: number) => {
     stopGestureTimer()
     gestureTimerRef.current = window.setTimeout(() => {
@@ -122,15 +130,25 @@ export default function HomePage() {
     }, delayMs)
   }, [stopGestureTimer])
 
-  const publishGestureProgress = useCallback(() => {
+  const publishGestureProgressImmediate = useCallback(() => {
     // For mouse wheels we want immediate, per-tick updates (no RAF batching),
     // otherwise the first visible movement can look like a jump.
     setGestureProgress(gestureProgressRef.current)
   }, [])
 
+  const publishGestureProgressRaf = useCallback(() => {
+    // Trackpads produce a lot of wheel events; RAF-batching makes the gesture feel smoother.
+    if (gestureRafRef.current) return
+    gestureRafRef.current = window.requestAnimationFrame(() => {
+      gestureRafRef.current = null
+      setGestureProgress(gestureProgressRef.current)
+    })
+  }, [])
+
   const resetGesture = useCallback(() => {
     stopGestureTimer()
     stopFinalizeTimer()
+    stopGestureRaf()
     gestureLockedRef.current = false
     gestureDirectionRef.current = null
     gestureProgressRef.current = 0
@@ -138,7 +156,7 @@ export default function HomePage() {
     setIncomingIndex(null)
     setDirection(null)
     setIsGesturing(false)
-  }, [stopFinalizeTimer, stopGestureTimer])
+  }, [stopFinalizeTimer, stopGestureRaf, stopGestureTimer])
 
   const setFooterProgressSafe = useCallback((next: number) => {
     const v = Math.min(1, Math.max(0, next))
@@ -245,6 +263,9 @@ export default function HomePage() {
     const wheelDt = now - (lastWheelTsRef.current || 0)
     lastWheelTsRef.current = now
     const isLikelyTrackpad = event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_TIME_CUTOFF_MS)
+    const absDelta = Math.abs(deltaY)
+    // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
+    const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
 
     // If footer overlay is visible while we're not on the last slide (shouldn't happen),
     // give priority to closing it and do not allow section scroll.
@@ -301,7 +322,7 @@ export default function HomePage() {
         // Trackpad: follow until idle, then snap open/close.
         stopFinalizeTimer()
         const wheelRange = Math.min(900, Math.max(260, window.innerHeight * 0.9))
-        const nextProgress = Math.min(1, footerProgressRef.current + Math.abs(deltaY) / wheelRange)
+        const nextProgress = Math.min(1, footerProgressRef.current + absDeltaClamped / wheelRange)
         setFooterProgressSafe(nextProgress)
         setIsGesturing(true)
         finalizeTimerRef.current = window.setTimeout(() => {
@@ -359,9 +380,10 @@ export default function HomePage() {
     const wheelRange = isLikelyTrackpad
       ? Math.min(900, Math.max(260, window.innerHeight * 0.9))
       : MOUSE_WHEEL_RANGE
-    const nextProgress = Math.min(1, gestureProgressRef.current + Math.abs(deltaY) / wheelRange)
+    const nextProgress = Math.min(1, gestureProgressRef.current + absDeltaClamped / wheelRange)
     gestureProgressRef.current = nextProgress
-    publishGestureProgress()
+    if (isLikelyTrackpad) publishGestureProgressRaf()
+    else publishGestureProgressImmediate()
 
     // Trackpad: follow until "release" (idle), then commit/rollback
     if (isLikelyTrackpad) {
@@ -385,7 +407,8 @@ export default function HomePage() {
     isFooterOpen,
     lastSlideIndex,
     openFooter,
-    publishGestureProgress,
+    publishGestureProgressImmediate,
+    publishGestureProgressRaf,
     resetGesture,
     scheduleFinalize,
     scheduleGestureReset,

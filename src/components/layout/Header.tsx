@@ -161,7 +161,17 @@ export default function Header() {
           </div>
 
           <div className={styles.headerCenter}>
-            <Link to="/" data-intro-anchor="logo">
+            <Link
+              to="/"
+              data-intro-anchor="logo"
+              onClick={(e) => {
+                // Client request: logo acts as a "refresh" (and always returns to home).
+                // If we're already on '/', reload; otherwise hard-navigate to '/'.
+                e.preventDefault()
+                if (window.location.pathname === '/') window.location.reload()
+                else window.location.assign('/')
+              }}
+            >
               <img src="/images/logo.png" alt="Логотип Vavip" />
             </Link>
           </div>
