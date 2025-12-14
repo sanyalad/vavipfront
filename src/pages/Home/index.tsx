@@ -198,6 +198,11 @@ export default function HomePage() {
     // #endregion
     setIsFooterOpen(true)
     setFooterProgressSafe(1)
+    // Make the drawer feel "independent": always start from top when opening.
+    // (No timeout; next-frame is enough.)
+    requestAnimationFrame(() => {
+      footerDrawerRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    })
   }, [setFooterProgressSafe])
 
   const closeFooter = useCallback(() => {

@@ -1,8 +1,11 @@
 /* ===== Header (десктоп/планшет) ===== */
 .header {
   position: fixed;
-  inset: 0 0 auto 0;
-  width: 100%;
+  top: 0;
+  left: 0;
+  /* Use viewport units to prevent width changes when scrollbars/gutters toggle */
+  width: 100vw;
+  max-width: 100vw;
   padding: 5px 30px;
   z-index: var(--z-header);
   background-color: rgba(18,20,22,.02);
