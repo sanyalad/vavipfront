@@ -96,7 +96,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-v2',
+        runId: 'trackpad-v3',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -832,7 +832,7 @@ export default function HomePage() {
   useEffect(() => {
     // #region agent log
     tpLog('TP0', 'home mount marker', {
-      v: 'trackpad-v2',
+      v: 'trackpad-v3',
       path: location.pathname,
       hash: location.hash || '',
     })
@@ -852,6 +852,21 @@ export default function HomePage() {
       window.removeEventListener('resize', setHeaderHeight)
     }
   }, [])
+
+  // Caption/gesture diagnostics: on trackpad gestures captions are forced hidden while data-gesture=true.
+  // We log only when gesture/direction toggles (not on every progress update).
+  useEffect(() => {
+    // #region agent log
+    tpLog('CAP1', 'gesture/direction state', {
+      activeIndex,
+      incomingIndex,
+      direction: direction || 'idle',
+      isGesturing,
+      // Rounded to reduce noise
+      gestureProgress: Math.round(gestureProgress * 1000) / 1000,
+    })
+    // #endregion
+  }, [activeIndex, direction, incomingIndex, isGesturing])
 
   // Hash-based navigation (/#catalog, /#shop, etc.)
   useEffect(() => {

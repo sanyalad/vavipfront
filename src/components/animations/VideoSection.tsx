@@ -40,6 +40,26 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const [isVideoReady, setIsVideoReady] = useState(false)
   const nextVideoRef = useRef<{ webmLink: HTMLLinkElement; mp4Link: HTMLLinkElement } | null>(null)
   const primedRef = useRef(false)
+  const lastVideoLogTsRef = useRef(0)
+
+  // #region agent log
+  const vsLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'trackpad-v3',
+        hypothesisId,
+        location: 'frontend/src/components/animations/VideoSection.tsx:vsLog',
+        message,
+        data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+  }, [])
+  // #endregion
 
   useImperativeHandle(forwardedRef, () => sectionRef.current as HTMLElement)
 
@@ -74,6 +94,15 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
 
     const handleCanPlay = () => {
       setIsVideoReady(true)
+      // #region agent log
+      vsLog('V2', 'video canplay', {
+        id,
+        index,
+        readyState: video.readyState,
+        paused: video.paused,
+        networkState: video.networkState,
+      })
+      // #endregion
     }
 
     const handleLoadedMetadata = () => {
@@ -81,6 +110,15 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
       if (!isVideoReady) {
         setIsVideoReady(true)
       }
+      // #region agent log
+      vsLog('V2', 'video loadedmetadata', {
+        id,
+        index,
+        readyState: video.readyState,
+        paused: video.paused,
+        networkState: video.networkState,
+      })
+      // #endregion
     }
 
     // Check if already loaded
@@ -106,9 +144,45 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     primeVideo()
 
     if (isActive) {
+      // #region agent log
+      const shouldPlay = isVideoReady || video.readyState >= HTMLMediaElement.HAVE_METADATA
+      // Throttle in case of rapid toggles
+      const now = performance.now()
+      if ((now - (lastVideoLogTsRef.current || 0)) > 120) {
+        lastVideoLogTsRef.current = now
+        vsLog('V1', 'active play decision', {
+          id,
+          index,
+          shouldPlay,
+          isVideoReady,
+          readyState: video.readyState,
+          paused: video.paused,
+          currentTime: Math.round(video.currentTime * 1000) / 1000,
+        })
+      }
+      // #endregion
       // Only play if video is ready, otherwise wait
-      if (isVideoReady || video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-        video.play().catch(() => {})
+      if (shouldPlay) {
+        const p = video.play()
+        if (p && typeof (p as Promise<void>).then === 'function') {
+          ;(p as Promise<void>)
+            .then(() => {
+              // #region agent log
+              vsLog('V1', 'play resolved', { id, index, paused: video.paused, readyState: video.readyState })
+              // #endregion
+            })
+            .catch((err: any) => {
+              // #region agent log
+              vsLog('V1', 'play rejected', {
+                id,
+                index,
+                name: err?.name ?? 'unknown',
+                // keep short to avoid dumping huge strings
+                message: String(err?.message ?? '').slice(0, 80),
+              })
+              // #endregion
+            })
+        }
       }
     } else {
       video.pause()
