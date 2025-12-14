@@ -3,6 +3,12 @@
   background: var(--color-bg);
 }
 
+/* When footer is used inside the Home "drawer" overlay, make layout fill the drawer height
+   and push the bottom row to the very bottom (no huge empty space under it). */
+:global(body.footer-drawer-lock) .footer {
+  height: 100%;
+}
+
 .borderTop {
   border-top: 1px solid rgba(255, 255, 255, 0.10);
 }
@@ -15,8 +21,18 @@
   padding: 76px 16px 14px;
 }
 
+:global(body.footer-drawer-lock) .inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .top {
   padding: 0;
+}
+
+:global(body.footer-drawer-lock) .top {
+  flex: 1;
 }
 
 .navGrid {
@@ -102,6 +118,10 @@
   gap: 24px;
   align-items: center;
   justify-content: space-between;
+}
+
+:global(body.footer-drawer-lock) .bottom {
+  margin-top: 0;
 }
 
 .copy {
