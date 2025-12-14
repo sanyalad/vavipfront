@@ -48,8 +48,9 @@ const WHEEL_GESTURE_IDLE_RESET_MS = 520
 const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
 // Heuristic: small deltas usually mean trackpad (mouse wheels are more "steppy").
 const TRACKPAD_DELTA_CUTOFF = 55
-// macOS trackpads can emit larger deltas, but usually in a fast stream.
-const TRACKPAD_TIME_CUTOFF_MS = 50
+// Trackpad vs mouse: treat a burst of wheel events as trackpad-like even if deltas are large.
+// This prevents "one tick = one full section" on touchpads and avoids skipping on fast scroll.
+const TRACKPAD_STREAM_CUTOFF_MS = 180
 // Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
 const MOUSE_WHEEL_RANGE = 320
 
@@ -338,7 +339,8 @@ export default function HomePage() {
     const now = performance.now()
     const wheelDt = now - (lastWheelTsRef.current || 0)
     lastWheelTsRef.current = now
-    const isLikelyTrackpad = event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_TIME_CUTOFF_MS)
+    const isLikelyTrackpad =
+      event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_STREAM_CUTOFF_MS)
     const absDelta = Math.abs(deltaY)
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
@@ -940,6 +942,12 @@ export default function HomePage() {
         headerCssRight: headerStyle?.right ?? null,
         headerCssInset: (headerStyle as any)?.inset ?? null,
         headerBoxSizing: headerStyle?.boxSizing ?? null,
+        innerWidth: window.innerWidth,
+        clientWidth: document.documentElement.clientWidth,
+        docScrollHeight: document.documentElement.scrollHeight,
+        docClientHeight: document.documentElement.clientHeight,
+        vvWidth: (window as any).visualViewport?.width ?? null,
+        vvScale: (window as any).visualViewport?.scale ?? null,
         drawerHeight: drawerRect?.height ?? null,
         drawerClientHeight: drawerEl?.clientHeight ?? null,
         drawerScrollHeight: drawerEl?.scrollHeight ?? null,

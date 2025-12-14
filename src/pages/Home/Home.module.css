@@ -120,9 +120,11 @@
   background: var(--color-bg);
   border-top: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.65);
-  /* Drawer itself should not scroll - keep bottom section always visible.
-     Scrolling (if needed) is handled inside the footer links area. */
-  overflow: hidden;
+  /* Allow vertical scroll when content doesn't fit into the fixed 40vh drawer.
+     We still try to keep "links" area scrollable, but the drawer must not clip content. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   pointer-events: none;
   border-radius: 0;
   border: none;
