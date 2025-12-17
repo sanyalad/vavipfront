@@ -37,16 +37,16 @@ const videoSections = [
 ]
 
 const WHEEL_THRESHOLD = 1
-// Keep JS timing aligned with CSS animation (~550ms) with a small buffer
-const SCROLL_DEBOUNCE = 570
+// Reduce CSS animation time for snappier transitions (was 570ms)
+const SCROLL_DEBOUNCE = 420
 // When progress crosses this value we auto-commit to the next/prev section
 const SNAP_THRESHOLD = 0.5
 // If user stops the gesture before threshold, snap back after a short idle.
 // For a regular mouse wheel, ticks can have noticeable gaps, so keep this relatively high.
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
 // Trackpads emit a stream of wheel deltas; treat a short pause as "release".
-// Too small values cause gesture fragmentation (snap-back mid-gesture) on real trackpads.
-const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 140
+// CRITICAL FIX: reduce from 140ms to 80ms for much faster finalization
+const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 80
 // Heuristic: on macOS touchpads the *first* wheel event after a pause can be moderately large (e.g. 64),
 // which must still be treated as trackpad to avoid "one swipe = one full section" misclassification.
 // Keep this below typical mouse wheel ticks (~100/120) so mouse still snaps on one tick.
@@ -105,7 +105,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-v3',
+        runId: 'trackpad-v4-perf',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -557,7 +557,8 @@ export default function HomePage() {
 
         // Trackpad: follow until idle, then snap open/close.
         stopFinalizeTimer()
-        const wheelRange = Math.min(900, Math.max(260, window.innerHeight * 0.9))
+        // PERF: reduce wheelRange to make footer gesture snappier
+        const wheelRange = Math.min(650, Math.max(220, window.innerHeight * 0.7))
         const nextProgress = Math.min(1, footerProgressRef.current + absDeltaClamped / wheelRange)
         // #region agent log
         tpLog('F8', 'footer gesture progress update (trackpad)', {
@@ -645,14 +646,15 @@ export default function HomePage() {
     stopGestureTimer()
     stopFinalizeTimer()
 
+    // PERF: reduce wheelRange significantly for snappier tracking (was 900px max)
     const wheelRange = isLikelyTrackpad
-      ? Math.min(900, Math.max(260, window.innerHeight * 0.9))
+      ? Math.min(650, Math.max(220, window.innerHeight * 0.7))
       : MOUSE_WHEEL_RANGE
     const prevProgress = gestureProgressRef.current
     const nextProgress = Math.min(1, prevProgress + absDeltaClamped / wheelRange)
     gestureProgressRef.current = nextProgress
-    if (isLikelyTrackpad) publishGestureProgressRaf()
-    else publishGestureProgressImmediate()
+    // PERF: use immediate updates instead of RAF for trackpad to reduce visual lag
+    publishGestureProgressImmediate()
 
     // #region agent log
     if (isLikelyTrackpad && (now - (lastTrackpadLogTsRef.current || 0)) > 90) {
@@ -692,7 +694,6 @@ export default function HomePage() {
     lastSlideIndex,
     openFooter,
     publishGestureProgressImmediate,
-    publishGestureProgressRaf,
     resetGesture,
     scheduleFinalize,
     scheduleGestureReset,
@@ -774,7 +775,6 @@ export default function HomePage() {
     lastSlideIndex,
     publishGestureProgressImmediate,
     resetGesture,
-    scrollToIndex,
     setFooterProgressSafe,
   ])
 
@@ -938,7 +938,7 @@ export default function HomePage() {
   useEffect(() => {
     // #region agent log
     tpLog('TP0', 'home mount marker', {
-      v: 'trackpad-v3',
+      v: 'trackpad-v4-perf',
       path: location.pathname,
       hash: location.hash || '',
     })
