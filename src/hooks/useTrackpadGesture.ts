@@ -35,6 +35,7 @@ export function useTrackpadGesture(
   const velocitySampleRef = useRef<{ ts: number; delta: number }>({ ts: 0, delta: 0 })
   const startAccumRef = useRef<{ sum: number; ts: number }>({ sum: 0, ts: 0 })
   const lastWheelTsRef = useRef(0)
+  const logCountRef = useRef(0)
 
   const resetState = useCallback(() => {
     stateRef.current = {
@@ -61,6 +62,7 @@ export function useTrackpadGesture(
     }
 
     const shouldCommit = progress >= TRACKPAD_SNAP_THRESHOLD || velocity > TRACKPAD_FAST_VELOCITY_THRESHOLD
+    console.log('[TRACKPAD] finalize:', { progress, velocity, direction, shouldCommit })
     onGesture(direction, progress, shouldCommit)
     resetState()
   }, [onGesture, resetState])
@@ -87,7 +89,20 @@ export function useTrackpadGesture(
         event.deltaMode === 0 &&
         (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_STREAM_CUTOFF_MS)
 
+      logCountRef.current++
+      if (logCountRef.current % 5 === 0) {
+        console.log('[TRACKPAD_DETECT]', {
+          deltaY,
+          deltaMode: event.deltaMode,
+          absDelta: Math.abs(deltaY),
+          wheelDt,
+          isTrackpad,
+          cutoffs: { DELTA: TRACKPAD_DELTA_CUTOFF, STREAM: TRACKPAD_STREAM_CUTOFF_MS },
+        })
+      }
+
       if (!isTrackpad) {
+        console.log('[TRACKPAD] not trackpad, resetting')
         resetState()
         return false
       }
@@ -104,6 +119,10 @@ export function useTrackpadGesture(
         // Exponential moving average
         stateRef.current.velocity = velocity * 0.7 + stateRef.current.velocity * 0.3
         velocitySampleRef.current = { ts: now, delta: clampedDelta }
+
+        if (logCountRef.current % 10 === 0) {
+          console.log('[TRACKPAD_VEL]', { velocity: velocity.toFixed(3), avg: stateRef.current.velocity.toFixed(3) })
+        }
       } else {
         velocitySampleRef.current = { ts: now, delta: clampedDelta }
       }
@@ -117,9 +136,11 @@ export function useTrackpadGesture(
         startAccumRef.current.sum += clampedDelta
 
         if (startAccumRef.current.sum < TRACKPAD_START_DELTA) {
+          console.log('[TRACKPAD_START] accumulating:', startAccumRef.current.sum)
           return true // consume event but don't update
         }
         // Threshold crossed, start gesture
+        console.log('[TRACKPAD_START] threshold crossed, starting gesture')
         startAccumRef.current = { sum: 0, ts: 0 }
       } else {
         startAccumRef.current = { sum: 0, ts: 0 }
@@ -133,10 +154,12 @@ export function useTrackpadGesture(
         stateRef.current.velocity = 0
         stateRef.current.isCommitted = false
         velocitySampleRef.current = { ts: now, delta: clampedDelta }
+        console.log('[TRACKPAD] new gesture:', direction)
       }
 
       // DIRECTION CHANGE
       if (stateRef.current.direction !== direction) {
+        console.log('[TRACKPAD] direction change:', stateRef.current.direction, '=>', direction)
         onGesture(stateRef.current.direction || direction, stateRef.current.progress, false)
         stateRef.current.direction = direction
         stateRef.current.progress = 0
@@ -155,6 +178,7 @@ export function useTrackpadGesture(
 
       if ((isFastSwipe || progressThresholdReached) && !stateRef.current.isCommitted) {
         stateRef.current.isCommitted = true
+        console.log('[TRACKPAD] COMMIT:', { isFastSwipe, velocity: stateRef.current.velocity.toFixed(3), progress: nextProgress })
         onGesture(direction, nextProgress, true)
         resetState()
         return true
