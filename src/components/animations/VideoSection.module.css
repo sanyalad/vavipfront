@@ -253,14 +253,22 @@
   filter: blur(8px);
 }
 
-/* During deck movement we keep captions hidden; they fade in after landing (active state) */
-[data-direction="next"] .videoCaption,
-[data-direction="prev"] .videoCaption,
-[data-gesture="true"] .videoCaption {
+/* During deck movement we keep NON-active captions hidden; active caption can stay visible */
+[data-direction="next"] .videoSection:not([data-state="active"]) .videoCaption,
+[data-direction="prev"] .videoSection:not([data-state="active"]) .videoCaption,
+[data-gesture="true"] .videoSection:not([data-state="active"]) .videoCaption {
   opacity: 0 !important;
   transform: translate(-50%, 22px) !important;
   filter: blur(10px) !important;
   transition-delay: 0s !important;
+}
+
+/* Активной секции разрешаем показывать подпись даже во время жеста/быстрой анимации */
+[data-gesture="true"] .videoSection[data-state="active"] .videoCaption {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) !important;
+  filter: blur(0) !important;
+  transition-delay: 0.15s;
 }
 
 /* ===== Video poster fallback ===== */
