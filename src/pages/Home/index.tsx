@@ -37,28 +37,19 @@ const videoSections = [
 ]
 
 const WHEEL_THRESHOLD = 1
-// Reduce CSS animation time for snappier transitions (was 570ms)
-const SCROLL_DEBOUNCE = 420
-// When progress crosses this value we auto-commit to the next/prev section
+const SCROLL_DEBOUNCE = 520
 const SNAP_THRESHOLD = 0.5
-// If user stops the gesture before threshold, snap back after a short idle.
-// For a regular mouse wheel, ticks can have noticeable gaps, so keep this relatively high.
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
-// Trackpads emit a stream of wheel deltas; treat a short pause as "release".
-// CRITICAL FIX: reduce from 140ms to 80ms for much faster finalization
-const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 80
-// Heuristic: on macOS touchpads the *first* wheel event after a pause can be moderately large (e.g. 64),
-// which must still be treated as trackpad to avoid "one swipe = one full section" misclassification.
-// Keep this below typical mouse wheel ticks (~100/120) so mouse still snaps on one tick.
+// Trackpad finalize: wait for idle PLUS check velocity to prevent premature commit
+const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 110
+// Velocity threshold: if still moving fast, keep tracking (don't finalize yet)
+const TRACKPAD_MIN_VELOCITY_TO_CONTINUE = 0.8
+// Time window to measure velocity
+const TRACKPAD_VELOCITY_SAMPLE_WINDOW_MS = 50
 const TRACKPAD_DELTA_CUTOFF = 85
-// Trackpad vs mouse: treat a burst of wheel events as trackpad-like even if deltas are large.
-// This prevents "one tick = one full section" on touchpads and avoids skipping on fast scroll.
 const TRACKPAD_STREAM_CUTOFF_MS = 180
-// Trackpads can emit tiny deltas (1..5px). Don't start a gesture on a single tiny delta,
-// but DO allow slow gestures by accumulating until we cross a small threshold.
 const TRACKPAD_START_DELTA_PX = 6
 const TRACKPAD_START_ACCUM_WINDOW_MS = 120
-// Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
 const MOUSE_WHEEL_RANGE = 320
 
 export default function HomePage() {
@@ -85,6 +76,11 @@ export default function HomePage() {
   const trackpadStartSumRef = useRef(0)
   const trackpadStartSumTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
+  // CRITICAL FIX: track last delta + timestamp to measure velocity
+  const lastTrackpadDeltaRef = useRef(0)\n  const lastTrackpadDeltaTsRef = useRef(0)
+  // Track finalize attempts to prevent double-trigger
+  const finalizeAttemptCountRef = useRef(0)
+  const lastFinalizeTimeRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -93,11 +89,10 @@ export default function HomePage() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [gestureProgress, setGestureProgress] = useState(0)
   const [isGesturing, setIsGesturing] = useState(false)
-  const [footerProgress, setFooterProgress] = useState(0) // 0..1
+  const [footerProgress, setFooterProgress] = useState(0)
   const [isFooterOpen, setIsFooterOpen] = useState(false)
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
 
-  // #region agent log
   const tpLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
     fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
       method: 'POST',
@@ -105,7 +100,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-v4-perf',
+        runId: 'trackpad-v5-velocity',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -114,7 +109,6 @@ export default function HomePage() {
       }),
     }).catch(() => {})
   }, [])
-  // #endregion
 
   const clampIndex = useCallback(
     (value: number) => Math.min(Math.max(value, 0), lastSlideIndex),
@@ -153,7 +147,6 @@ export default function HomePage() {
   const scheduleGestureReset = useCallback((delayMs: number) => {
     stopGestureTimer()
     gestureTimerRef.current = window.setTimeout(() => {
-      // If we didn't cross the threshold, snap back
       gestureLockedRef.current = false
       gestureDirectionRef.current = null
       gestureProgressRef.current = 0
@@ -164,14 +157,7 @@ export default function HomePage() {
     }, delayMs)
   }, [stopGestureTimer])
 
-  const publishGestureProgressImmediate = useCallback(() => {
-    // For mouse wheels we want immediate, per-tick updates (no RAF batching),
-    // otherwise the first visible movement can look like a jump.
-    setGestureProgress(gestureProgressRef.current)
-  }, [])
-
   const publishGestureProgressRaf = useCallback(() => {
-    // Trackpads produce a lot of wheel events; RAF-batching makes the gesture feel smoother.
     if (gestureRafRef.current) return
     gestureRafRef.current = window.requestAnimationFrame(() => {
       gestureRafRef.current = null
@@ -190,57 +176,41 @@ export default function HomePage() {
     setIncomingIndex(null)
     setDirection(null)
     setIsGesturing(false)
+    finalizeAttemptCountRef.current = 0
   }, [stopFinalizeTimer, stopGestureRaf, stopGestureTimer])
 
   const setFooterProgressSafe = useCallback((next: number) => {
     const v = Math.min(1, Math.max(0, next))
     footerProgressRef.current = v
     setFooterProgress(v)
-    // #region agent log
-    // Footer must ONLY move on the last slide; log any unexpected progress changes.
-    if (v > 0.02 && activeIndex !== lastSlideIndex) {
-      tpLog('F7', 'footerProgress changed while NOT on last slide', {
-        activeIndex,
-        lastSlideIndex,
-        next: v,
-      })
-    }
-    // #endregion
   }, [])
 
   const openFooter = useCallback(() => {
-    // #region agent log
     tpLog('F5', 'openFooter() called', {
       activeIndex,
       lastSlideIndex,
       footerProgress: footerProgressRef.current,
       isFooterOpen,
     })
-    // #endregion
     setIsFooterOpen(true)
     setFooterProgressSafe(1)
-    // Make the drawer feel "independent": always start from top when opening.
-    // (No timeout; next-frame is enough.)
     requestAnimationFrame(() => {
       footerDrawerRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     })
-  }, [setFooterProgressSafe])
+  }, [setFooterProgressSafe, activeIndex, lastSlideIndex, isFooterOpen, tpLog])
 
   const closeFooter = useCallback(() => {
-    // #region agent log
     tpLog('F5', 'closeFooter() called', {
       activeIndex,
       lastSlideIndex,
       footerProgress: footerProgressRef.current,
       isFooterOpen,
     })
-    // #endregion
     setIsFooterOpen(false)
     setFooterProgressSafe(0)
-  }, [setFooterProgressSafe])
+  }, [setFooterProgressSafe, activeIndex, lastSlideIndex, isFooterOpen, tpLog])
 
   const scrollToIndex = useCallback((nextIndex: number) => {
-    // If footer overlay is visible/open, close it before navigating sections
     if (isFooterOpen || footerProgressRef.current > 0.02) {
       closeFooter()
     }
@@ -251,7 +221,6 @@ export default function HomePage() {
 
     stopAnimationTimer()
     isAnimatingRef.current = true
-    // Make sure we exit gesture mode before the commit animation
     setIsGesturing(false)
     setFromIndex(activeIndex)
     setIncomingIndex(safeIndex)
@@ -264,8 +233,6 @@ export default function HomePage() {
       setIncomingIndex(null)
       setIsAnimating(false)
       isAnimatingRef.current = false
-      // Mark when we *actually* arrived at the last slide.
-      // Used to prevent "wild scroll" from opening the footer while transitioning into it.
       lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
       setDirection(null)
       animationTimerRef.current = null
@@ -273,7 +240,10 @@ export default function HomePage() {
   }, [activeIndex, clampIndex, closeFooter, isFooterOpen, lastSlideIndex, stopAnimationTimer])
 
   const finalizeGesture = useCallback(() => {
-    if (isAnimatingRef.current) return
+    if (isAnimatingRef.current) {
+      tpLog('TP3_GUARD', 'finalizeGesture blocked: already animating', {})
+      return
+    }
     const dir = gestureDirectionRef.current
     if (!dir) {
       resetGesture()
@@ -281,7 +251,18 @@ export default function HomePage() {
     }
 
     const progress = gestureProgressRef.current
-    // #region agent log
+    // GUARD: prevent double-finalize within 100ms
+    const now = performance.now()
+    if (now - lastFinalizeTimeRef.current < 100) {
+      tpLog('TP3_GUARD', 'finalizeGesture blocked: debounce', {
+        timeSinceLastFinalize: now - lastFinalizeTimeRef.current,
+        attemptCount: finalizeAttemptCountRef.current,
+      })
+      return
+    }
+    lastFinalizeTimeRef.current = now
+    finalizeAttemptCountRef.current += 1
+
     tpLog('TP3', 'finalizeGesture: decide', {
       activeIndex,
       incomingIndex,
@@ -291,15 +272,14 @@ export default function HomePage() {
       isFooterOpen,
       footerProgress: footerProgressRef.current,
       isAnimatingRef: isAnimatingRef.current,
+      attemptCount: finalizeAttemptCountRef.current,
     })
-    // #endregion
+
     if (progress >= SNAP_THRESHOLD) {
-      // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
         const canOpenFooter = lastSlideArrivedAtRef.current > 0
           && (performance.now() - lastSlideArrivedAtRef.current) > 220
         resetGesture()
-        // #region agent log
         tpLog('TP4', 'finalizeGesture: openFooter?', {
           canOpenFooter,
           activeIndex,
@@ -307,49 +287,33 @@ export default function HomePage() {
           dir,
           progress,
         })
-        // #endregion
         if (canOpenFooter) openFooter()
         return
       }
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       resetGesture()
-      // #region agent log
       tpLog('TP4', 'finalizeGesture: commit scrollToIndex', {
         activeIndex,
         nextIndex,
         dir,
         progress,
       })
-      // #endregion
       scrollToIndex(nextIndex)
       return
     }
 
-    // #region agent log
     tpLog('TP3', 'finalizeGesture: snap back', {
       activeIndex,
       dir,
       progress,
     })
-    // #endregion
     resetGesture()
-  }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, openFooter, resetGesture, scrollToIndex])
+  }, [activeIndex, clampIndex, isAnimating, lastSlideIndex, openFooter, resetGesture, scrollToIndex, tpLog])
 
   const scheduleFinalize = useCallback((delayMs: number) => {
     stopFinalizeTimer()
-    // #region agent log
-    tpLog('TP2', 'scheduleFinalize: set', {
-      delayMs,
-      activeIndex,
-      incomingIndex,
-      dir: gestureDirectionRef.current,
-      progress: gestureProgressRef.current,
-      isAnimatingRef: isAnimatingRef.current,
-    })
-    // #endregion
     finalizeTimerRef.current = window.setTimeout(() => {
       finalizeTimerRef.current = null
-      // #region agent log
       tpLog('TP2', 'scheduleFinalize: fired', {
         delayMs,
         activeIndex,
@@ -358,22 +322,18 @@ export default function HomePage() {
         progress: gestureProgressRef.current,
         isAnimatingRef: isAnimatingRef.current,
       })
-      // #endregion
       finalizeGesture()
     }, delayMs)
-  }, [finalizeGesture, stopFinalizeTimer])
+  }, [finalizeGesture, stopFinalizeTimer, activeIndex, incomingIndex, tpLog])
 
   const handleWheel = useCallback((event: WheelEvent) => {
     if (prefersReducedMotion.current) return
 
-    // If header dropdown is open, let the dropdown scroll (do not hijack wheel for video sections).
     if (document.body.classList.contains('dropdown-scroll-lock')) return
 
     const wrapper = videoWrapperRef.current
     if (!wrapper) return
 
-    // Only hijack scroll when the hero stack actually fills the viewport.
-    // This prevents wheel events over the footer from still switching slides.
     const wrapperRect = wrapper.getBoundingClientRect()
     const wrapperTopAligned = Math.abs(wrapperRect.top) <= 2
     const wrapperFillsViewport = wrapperRect.bottom >= window.innerHeight * 0.92
@@ -381,21 +341,46 @@ export default function HomePage() {
     if (!shouldHandle) return
 
     let deltaY = event.deltaY || 0
-    // Normalize delta across devices
-    if (event.deltaMode === 1) deltaY *= 16 // lines -> px-ish
-    if (event.deltaMode === 2) deltaY *= window.innerHeight // pages -> px-ish
+    if (event.deltaMode === 1) deltaY *= 16
+    if (event.deltaMode === 2) deltaY *= window.innerHeight
     if (Math.abs(deltaY) < WHEEL_THRESHOLD) return
+    
     const now = performance.now()
     const wheelDt = now - (lastWheelTsRef.current || 0)
     lastWheelTsRef.current = now
+    
     const isLikelyTrackpad =
       event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_STREAM_CUTOFF_MS)
     const absDelta = Math.abs(deltaY)
-    // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
 
-    // Don't start a gesture on a single tiny delta, but allow slow gestures to accumulate.
-    // Also prevent native scroll while the hero stack is handling wheel.
+    // Track velocity: measure delta/time to detect if user is still swiping
+    if (isLikelyTrackpad) {
+      const velocitySampleTs = lastTrackpadDeltaTsRef.current || 0
+      if (velocitySampleTs && now - velocitySampleTs < TRACKPAD_VELOCITY_SAMPLE_WINDOW_MS) {
+        // Calculate velocity: pixels per millisecond
+        const deltaTime = now - velocitySampleTs
+        const velocity = (absDeltaClamped + Math.abs(lastTrackpadDeltaRef.current)) / deltaTime
+        lastTrackpadDeltaRef.current = absDeltaClamped
+        lastTrackpadDeltaTsRef.current = now
+        
+        // CRITICAL: if still moving, reschedule finalize
+        if (velocity > TRACKPAD_MIN_VELOCITY_TO_CONTINUE && gestureDirectionRef.current) {
+          stopFinalizeTimer()
+          scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
+          tpLog('TP2_VEL', 'high velocity detected, extended finalize', {
+            velocity: Math.round(velocity * 100) / 100,
+            threshold: TRACKPAD_MIN_VELOCITY_TO_CONTINUE,
+            absDeltaClamped,
+            deltaTime,
+          })
+        }
+      } else {
+        lastTrackpadDeltaRef.current = absDeltaClamped
+        lastTrackpadDeltaTsRef.current = now
+      }
+    }
+
     if (isLikelyTrackpad && !gestureDirectionRef.current && absDelta < TRACKPAD_START_DELTA_PX) {
       event.preventDefault()
       const lastTs = trackpadStartSumTsRef.current || 0
@@ -405,7 +390,6 @@ export default function HomePage() {
       trackpadStartSumTsRef.current = now
       trackpadStartSumRef.current += absDelta
 
-      // #region agent log
       trackpadIgnoredCountRef.current += 1
       if ((now - (lastTrackpadIgnoreLogTsRef.current || 0)) > 200) {
         lastTrackpadIgnoreLogTsRef.current = now
@@ -413,53 +397,35 @@ export default function HomePage() {
           activeIndex,
           incomingIndex,
           absDelta,
-          deltaY,
           sum: trackpadStartSumRef.current,
           ignoredCount: trackpadIgnoredCountRef.current,
-          cutoffPx: TRACKPAD_START_DELTA_PX,
-          windowMs: TRACKPAD_START_ACCUM_WINDOW_MS,
-          wheelDt,
         })
         trackpadIgnoredCountRef.current = 0
       }
-      // #endregion
 
       if (trackpadStartSumRef.current < TRACKPAD_START_DELTA_PX) {
         return
       }
 
-      // Threshold reached: allow gesture to start on this event.
       trackpadStartSumRef.current = 0
     } else {
-      // reset counters once we accept meaningful deltas
       trackpadIgnoredCountRef.current = 0
       trackpadStartSumRef.current = 0
     }
 
-    // #region agent log
-    // Trackpad-only sampling: helps detect misclassification (mouse vs trackpad) and jitter bursts.
     if (isLikelyTrackpad && (now - (lastTrackpadLogTsRef.current || 0)) > 90) {
       lastTrackpadLogTsRef.current = now
       tpLog('TP1', 'wheel(trackpad) sample', {
         activeIndex,
-        incomingIndex,
-        isAnimatingRef: isAnimatingRef.current,
-        gestureLocked: gestureLockedRef.current,
-        deltaMode: event.deltaMode,
         deltaY,
         absDelta,
         absDeltaClamped,
         wheelDt,
-        trackpadDeltaCutoff: TRACKPAD_DELTA_CUTOFF,
-        trackpadStreamCutoffMs: TRACKPAD_STREAM_CUTOFF_MS,
         progress: gestureProgressRef.current,
         dir: gestureDirectionRef.current,
-        footerProgress: footerProgressRef.current,
-        isFooterOpen,
       })
     }
-    // Critical diagnostic: deltaMode=0 but NOT classified as trackpad.
-    // This is the suspected root cause of "too sensitive" + skipping on mac trackpads with large deltas or slow cadence.
+
     if (
       event.deltaMode === 0
       && !isLikelyTrackpad
@@ -468,53 +434,24 @@ export default function HomePage() {
       lastWheelClassifyLogTsRef.current = now
       tpLog('TP1', 'wheel(deltaMode0) classified as mouse', {
         activeIndex,
-        incomingIndex,
-        isAnimatingRef: isAnimatingRef.current,
-        gestureLocked: gestureLockedRef.current,
-        deltaMode: event.deltaMode,
         deltaY,
         absDelta,
         wheelDt,
-        trackpadDeltaCutoff: TRACKPAD_DELTA_CUTOFF,
-        trackpadStreamCutoffMs: TRACKPAD_STREAM_CUTOFF_MS,
       })
     }
-    // #endregion
 
-    // If footer overlay is visible while we're not on the last slide (shouldn't happen),
-    // give priority to closing it and do not allow section scroll.
     if (footerProgressRef.current > 0.02 && activeIndex !== lastSlideIndex) {
       event.preventDefault()
       closeFooter()
       return
     }
 
-    // Footer overlay: on the last slide, wheel down opens footer; wheel up closes footer.
     if (activeIndex === lastSlideIndex) {
       const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
       const footerInGesture = footerProgressRef.current > 0.02 && !isFooterOpen
       const canOpenFooter = lastSlideArrivedAtRef.current > 0
         && (now - lastSlideArrivedAtRef.current) > 220
 
-      // #region agent log
-      // One log per gesture start is enough; we gate it by directionRef.
-      if (isLikelyTrackpad && !gestureDirectionRef.current) {
-        tpLog('F6', 'last-slide footer branch entered', {
-          activeIndex,
-          lastSlideIndex,
-          dir,
-          canOpenFooter,
-          footerInGesture,
-          isFooterOpen,
-          footerProgress: footerProgressRef.current,
-          wheelDt,
-          deltaY,
-          absDelta,
-        })
-      }
-      // #endregion
-
-      // If footer is open:
       if (isFooterOpen) {
         const footerEl = footerDrawerRef.current
         const targetNode = event.target as Node | null
@@ -522,22 +459,18 @@ export default function HomePage() {
         const canScrollUpInside =
           !!footerEl && footerEl.scrollHeight > footerEl.clientHeight && footerEl.scrollTop > 0
 
-        // If scrolling up at the top of footer -> close
         if (dir === 'prev' && (!isInsideFooter || !canScrollUpInside)) {
           event.preventDefault()
           closeFooter()
           return
         }
 
-        // If inside footer, let it scroll naturally.
         if (isInsideFooter) return
 
-        // Outside footer: keep overlay open; do not let the page scroll.
         event.preventDefault()
         return
       }
 
-      // If footer is partially visible (trackpad gesture) and user scrolls up — close it, don't change sections.
       if (footerInGesture && dir === 'prev') {
         event.preventDefault()
         closeFooter()
@@ -545,32 +478,17 @@ export default function HomePage() {
         return
       }
 
-      // Footer closed, wheel down should open it.
       if (dir === 'next') {
         event.preventDefault()
-        // Prevent "wild scroll" from opening footer while user is still arriving to the last slide.
         if (!canOpenFooter) return
         if (!isLikelyTrackpad) {
           openFooter()
           return
         }
 
-        // Trackpad: follow until idle, then snap open/close.
         stopFinalizeTimer()
-        // PERF: reduce wheelRange to make footer gesture snappier
-        const wheelRange = Math.min(650, Math.max(220, window.innerHeight * 0.7))
+        const wheelRange = Math.min(800, Math.max(280, window.innerHeight * 0.85))
         const nextProgress = Math.min(1, footerProgressRef.current + absDeltaClamped / wheelRange)
-        // #region agent log
-        tpLog('F8', 'footer gesture progress update (trackpad)', {
-          activeIndex,
-          lastSlideIndex,
-          before: footerProgressRef.current,
-          next: nextProgress,
-          absDeltaClamped,
-          wheelRange,
-          canOpenFooter,
-        })
-        // #endregion
         setFooterProgressSafe(nextProgress)
         setIsGesturing(true)
         finalizeTimerRef.current = window.setTimeout(() => {
@@ -583,7 +501,6 @@ export default function HomePage() {
       }
     }
 
-    // Жесткий лок: пока идет анимация — не принимаем новые wheel события
     if (isAnimatingRef.current) {
       event.preventDefault()
       return
@@ -593,7 +510,6 @@ export default function HomePage() {
 
     const dir: 'next' | 'prev' = deltaY > 0 ? 'next' : 'prev'
 
-    // Boundary: allow native scroll (down from last slide to footer, etc.)
     if (dir === 'prev' && activeIndex === 0) {
       resetGesture()
       return
@@ -601,30 +517,13 @@ export default function HomePage() {
 
     event.preventDefault()
 
-    // Mouse wheel: переключаемся сразу с 1 тика (перфекционистично и без "накопления").
-    // Trackpad остаётся "follow until release".
     if (!isLikelyTrackpad) {
-      // #region agent log
-      if (event.deltaMode === 0) {
-        tpLog('TP4', 'mouse-branch commit (deltaMode0)', {
-          activeIndex,
-          incomingIndex,
-          dir,
-          deltaMode: event.deltaMode,
-          deltaY,
-          absDelta,
-          wheelDt,
-          isAnimatingRef: isAnimatingRef.current,
-        })
-      }
-      // #endregion
       resetGesture()
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       scrollToIndex(nextIndex)
       return
     }
 
-    // If direction changed, restart gesture
     if (gestureDirectionRef.current !== dir) {
       gestureDirectionRef.current = dir
       gestureProgressRef.current = 0
@@ -634,29 +533,25 @@ export default function HomePage() {
       setDirection(dir)
       setIsAnimating(false)
       setGestureProgress(0)
-      // #region agent log
+      finalizeAttemptCountRef.current = 0
+      lastFinalizeTimeRef.current = 0
+      
       tpLog('TP2', 'trackpad: new gesture dir', {
         activeIndex,
         incomingIndex: clampIndex(activeIndex + (dir === 'next' ? 1 : -1)),
         dir,
       })
-      // #endregion
     }
 
     stopGestureTimer()
     stopFinalizeTimer()
 
-    // PERF: reduce wheelRange significantly for snappier tracking (was 900px max)
-    const wheelRange = isLikelyTrackpad
-      ? Math.min(650, Math.max(220, window.innerHeight * 0.7))
-      : MOUSE_WHEEL_RANGE
+    const wheelRange = Math.min(800, Math.max(280, window.innerHeight * 0.85))
     const prevProgress = gestureProgressRef.current
     const nextProgress = Math.min(1, prevProgress + absDeltaClamped / wheelRange)
     gestureProgressRef.current = nextProgress
-    // PERF: use immediate updates instead of RAF for trackpad to reduce visual lag
-    publishGestureProgressImmediate()
+    publishGestureProgressRaf()
 
-    // #region agent log
     if (isLikelyTrackpad && (now - (lastTrackpadLogTsRef.current || 0)) > 90) {
       lastTrackpadLogTsRef.current = now
       tpLog('TP2', 'trackpad: progress update', {
@@ -669,15 +564,12 @@ export default function HomePage() {
         nextProgress,
       })
     }
-    // #endregion
 
-    // Trackpad: follow until "release" (idle), then commit/rollback
     if (isLikelyTrackpad) {
       scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
       return
     }
 
-    // Mouse wheel: keep the older snappy behavior
     if (nextProgress >= SNAP_THRESHOLD) {
       gestureLockedRef.current = true
       finalizeGesture()
@@ -693,7 +585,7 @@ export default function HomePage() {
     isFooterOpen,
     lastSlideIndex,
     openFooter,
-    publishGestureProgressImmediate,
+    publishGestureProgressRaf,
     resetGesture,
     scheduleFinalize,
     scheduleGestureReset,
@@ -701,6 +593,7 @@ export default function HomePage() {
     setFooterProgressSafe,
     stopFinalizeTimer,
     stopGestureTimer,
+    tpLog,
   ])
 
   const handleTouchStart = useCallback((event: TouchEvent) => {
@@ -710,7 +603,7 @@ export default function HomePage() {
     gestureLockedRef.current = false
     touchStartY.current = event.touches[0]?.clientY ?? 0
     resetGesture()
-  }, [prefersReducedMotion, resetGesture])
+  }, [resetGesture])
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
     if (prefersReducedMotion.current) return
@@ -724,11 +617,9 @@ export default function HomePage() {
 
     const dir: 'next' | 'prev' = diff > 0 ? 'next' : 'prev'
 
-    // Footer overlay gesture on the last slide (follow finger)
     if (activeIndex === lastSlideIndex) {
       const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
 
-      // Swipe up -> open
       if (dir === 'next') {
         event.preventDefault()
         setIsGesturing(true)
@@ -736,7 +627,6 @@ export default function HomePage() {
         return
       }
 
-      // Swipe down -> close (only if already open)
       if (dir === 'prev' && isFooterOpen) {
         event.preventDefault()
         setIsGesturing(true)
@@ -746,7 +636,6 @@ export default function HomePage() {
       }
     }
 
-    // Boundary: allow native scroll when at top edge
     if (dir === 'prev' && activeIndex === 0) {
       resetGesture()
       return
@@ -766,14 +655,12 @@ export default function HomePage() {
     const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
     const nextProgress = Math.min(1, Math.abs(diff) / range)
     gestureProgressRef.current = nextProgress
-    // Touch should feel "1:1" — update immediately (no RAF batching).
-    publishGestureProgressImmediate()
+    setGestureProgress(nextProgress)
   }, [
     activeIndex,
     clampIndex,
     isFooterOpen,
     lastSlideIndex,
-    publishGestureProgressImmediate,
     resetGesture,
     setFooterProgressSafe,
   ])
@@ -781,10 +668,8 @@ export default function HomePage() {
   const handleTouchEnd = useCallback(() => {
     if (prefersReducedMotion.current) return
     if (isAnimatingRef.current) return
-    // Touch: commit/rollback only on release
     gestureLockedRef.current = false
     if (activeIndex === lastSlideIndex) {
-      // Commit footer drawer state on release
       if (!isFooterOpen) {
         if (footerProgressRef.current >= SNAP_THRESHOLD) openFooter()
         else closeFooter()
@@ -816,7 +701,6 @@ export default function HomePage() {
         closeFooter()
         return
       }
-      // Если на первом слайде — ничего не делаем
       if (activeIndex === 0) {
         event.preventDefault()
         return
@@ -826,7 +710,6 @@ export default function HomePage() {
     }
   }, [activeIndex, closeFooter, isFooterOpen, lastSlideIndex, openFooter, scrollToIndex])
 
-  // Wheel + touch listeners on window to avoid native scroll дергания
   useEffect(() => {
     window.addEventListener('wheel', handleWheel, { passive: false })
     window.addEventListener('keydown', handleKeyDown)
@@ -837,7 +720,6 @@ export default function HomePage() {
     }
   }, [handleKeyDown, handleWheel])
 
-  // Touch listeners on wrapper (passive:false for touchmove to prevent native scroll)
   useEffect(() => {
     const wrapper = videoWrapperRef.current
     if (!wrapper) return
@@ -854,7 +736,6 @@ export default function HomePage() {
     }
   }, [handleTouchEnd, handleTouchMove, handleTouchStart])
 
-  // Чистим таймер анимации при размонтировании
   useEffect(() => {
     return () => {
       stopAnimationTimer()
@@ -863,15 +744,12 @@ export default function HomePage() {
     }
   }, [stopAnimationTimer, stopFinalizeTimer, stopGestureTimer])
 
-  // Preload video metadata using link rel="preload" (more efficient than hidden DOM elements)
   useEffect(() => {
     const links: HTMLLinkElement[] = []
     
     videoSections.forEach((section, idx) => {
-      // Preload first two видео с высоким приоритетом, остальные — фоном
       const isHighPriority = idx < 2
       
-      // Preload WebM format (preferred)
       const webmLink = document.createElement('link')
       webmLink.rel = 'preload'
       webmLink.as = 'video'
@@ -881,7 +759,6 @@ export default function HomePage() {
       document.head.appendChild(webmLink)
       links.push(webmLink)
       
-      // Preload MP4 fallback
       const mp4Link = document.createElement('link')
       mp4Link.rel = 'preload'
       mp4Link.as = 'video'
@@ -893,7 +770,6 @@ export default function HomePage() {
     })
 
     return () => {
-      // Cleanup preload links
       links.forEach((link) => {
         if (link.parentNode) {
           link.parentNode.removeChild(link)
@@ -902,7 +778,6 @@ export default function HomePage() {
     }
   }, [])
 
-  // Track first video readiness
   useEffect(() => {
     const videoWrapper = videoWrapperRef.current
     if (!videoWrapper) return
@@ -915,34 +790,26 @@ export default function HomePage() {
       return false
     }
 
-    // Check immediately
     if (checkFirstVideoReady()) return
 
-    // Listen for video events
     const firstVideo = videoWrapper.querySelector('[data-section-index="0"] video') as HTMLVideoElement
     if (!firstVideo) return
 
-    const handleReady = () => {
-    }
-
-    firstVideo.addEventListener('loadedmetadata', handleReady, { once: true })
-    firstVideo.addEventListener('canplay', handleReady, { once: true })
+    firstVideo.addEventListener('loadedmetadata', () => {}, { once: true })
+    firstVideo.addEventListener('canplay', () => {}, { once: true })
 
     return () => {
-      firstVideo.removeEventListener('loadedmetadata', handleReady)
-      firstVideo.removeEventListener('canplay', handleReady)
+      firstVideo.removeEventListener('loadedmetadata', () => {})
+      firstVideo.removeEventListener('canplay', () => {})
     }
   }, [])
 
-  // Header height variable + body scroll lock
   useEffect(() => {
-    // #region agent log
     tpLog('TP0', 'home mount marker', {
-      v: 'trackpad-v4-perf',
+      v: 'trackpad-v5-velocity',
       path: location.pathname,
       hash: location.hash || '',
     })
-    // #endregion
     prefersReducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const setHeaderHeight = () => {
@@ -957,39 +824,27 @@ export default function HomePage() {
     return () => {
       window.removeEventListener('resize', setHeaderHeight)
     }
-  }, [])
+  }, [tpLog, location.pathname, location.hash])
 
-  // Caption/gesture diagnostics: on trackpad gestures captions are forced hidden while data-gesture=true.
-  // We log only when gesture/direction toggles (not on every progress update).
   useEffect(() => {
-    // #region agent log
     tpLog('CAP1', 'gesture/direction state', {
       activeIndex,
       incomingIndex,
       direction: direction || 'idle',
       isGesturing,
-      // Rounded to reduce noise
       gestureProgress: Math.round(gestureProgress * 1000) / 1000,
     })
-    // #endregion
-  }, [activeIndex, direction, incomingIndex, isGesturing])
+  }, [activeIndex, direction, incomingIndex, isGesturing, gestureProgress, tpLog])
 
-  // Hash-based navigation (/#catalog, /#shop, etc.)
   useEffect(() => {
     if (!location.hash) return
     const hash = location.hash.replace('#', '')
-
-    const targetId = hash
-
-    const targetIndex = videoSections.findIndex((section) => section.id === targetId)
-
+    const targetIndex = videoSections.findIndex((section) => section.id === hash)
     if (targetIndex >= 0) {
       scrollToIndex(targetIndex)
     }
   }, [location.hash, scrollToIndex])
 
-  // Footer drawer can be partially opened during gesture. Use a separate class for styling/alignment
-  // without necessarily locking the whole page scroll.
   useEffect(() => {
     const isActive = footerProgress > 0.02
     if (isActive) document.body.classList.add('footer-drawer-active')
@@ -999,8 +854,6 @@ export default function HomePage() {
     }
   }, [footerProgress])
 
-  // Safety: footer overlay must ONLY exist on the last slide.
-  // If we leave the last slide for any reason (including wild scroll), force-close it.
   useEffect(() => {
     if (activeIndex === lastSlideIndex) return
     lastSlideArrivedAtRef.current = 0
@@ -1009,9 +862,6 @@ export default function HomePage() {
     }
   }, [activeIndex, closeFooter, isFooterOpen, lastSlideIndex])
 
-  // Во время анимации:
-  // При скролле вниз: fromIndex -> prev (остается), activeIndex -> next (выезжает снизу)
-  // При скролле вверх: activeIndex -> prev (выезжает сверху), fromIndex -> next (уходит вниз)
   const visibleNextIndex = useMemo(() => {
     return direction === 'next'
       ? incomingIndex
@@ -1031,7 +881,6 @@ export default function HomePage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      {/* Video Sections Wrapper */}
       <div
         ref={videoWrapperRef}
         className={styles.videoSectionsWrapper}
@@ -1040,10 +889,8 @@ export default function HomePage() {
         style={{ ['--gesture-progress' as string]: String(gestureProgress) }}
       >
         {videoSections.map((section, index) => {
-          // Во время анимации next имеет приоритет над active
           const isNext = visibleNextIndex === index
           const isPrev = visiblePrevIndex === index
-          // active только если не next и не prev во время анимации
           const isActive = index === activeIndex && !isNext && !isPrev
           const nextVideoSrc = index < videoSections.length - 1 ? videoSections[index + 1].videoSrc : undefined
 
@@ -1063,7 +910,6 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Footer overlay (opens over the 4th video section) */}
       <div
         className={styles.footerBackdrop}
         data-visible={footerProgress > 0.02 ? 'true' : 'false'}
@@ -1083,7 +929,6 @@ export default function HomePage() {
         <Footer />
       </div>
 
-      {/* Mobile Navigation Strip */}
       <nav className={styles.mobileStrip} aria-label="Навигация по разделам">
         {videoSections.map((section, index) => (
           <button
