@@ -40,11 +40,8 @@ const WHEEL_THRESHOLD = 1
 const SCROLL_DEBOUNCE = 520
 const SNAP_THRESHOLD = 0.5
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
-// Trackpad finalize: wait for idle PLUS check velocity to prevent premature commit
 const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 110
-// Velocity threshold: if still moving fast, keep tracking (don't finalize yet)
 const TRACKPAD_MIN_VELOCITY_TO_CONTINUE = 0.8
-// Time window to measure velocity
 const TRACKPAD_VELOCITY_SAMPLE_WINDOW_MS = 50
 const TRACKPAD_DELTA_CUTOFF = 85
 const TRACKPAD_STREAM_CUTOFF_MS = 180
@@ -76,9 +73,8 @@ export default function HomePage() {
   const trackpadStartSumRef = useRef(0)
   const trackpadStartSumTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
-  // CRITICAL FIX: track last delta + timestamp to measure velocity
-  const lastTrackpadDeltaRef = useRef(0)\n  const lastTrackpadDeltaTsRef = useRef(0)
-  // Track finalize attempts to prevent double-trigger
+  const lastTrackpadDeltaRef = useRef(0)
+  const lastTrackpadDeltaTsRef = useRef(0)
   const finalizeAttemptCountRef = useRef(0)
   const lastFinalizeTimeRef = useRef(0)
 
@@ -100,7 +96,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-v5-velocity',
+        runId: 'trackpad-v6-caption-fix',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -221,6 +217,7 @@ export default function HomePage() {
 
     stopAnimationTimer()
     isAnimatingRef.current = true
+    // CRITICAL: immediately hide gesture state before animation starts
     setIsGesturing(false)
     setFromIndex(activeIndex)
     setIncomingIndex(safeIndex)
@@ -235,6 +232,8 @@ export default function HomePage() {
       isAnimatingRef.current = false
       lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
       setDirection(null)
+      // CRITICAL: ensure gesture state is cleared after animation
+      setIsGesturing(false)
       animationTimerRef.current = null
     }, timeout)
   }, [activeIndex, clampIndex, closeFooter, isFooterOpen, lastSlideIndex, stopAnimationTimer])
@@ -251,7 +250,6 @@ export default function HomePage() {
     }
 
     const progress = gestureProgressRef.current
-    // GUARD: prevent double-finalize within 100ms
     const now = performance.now()
     if (now - lastFinalizeTimeRef.current < 100) {
       tpLog('TP3_GUARD', 'finalizeGesture blocked: debounce', {
@@ -354,17 +352,14 @@ export default function HomePage() {
     const absDelta = Math.abs(deltaY)
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
 
-    // Track velocity: measure delta/time to detect if user is still swiping
     if (isLikelyTrackpad) {
       const velocitySampleTs = lastTrackpadDeltaTsRef.current || 0
       if (velocitySampleTs && now - velocitySampleTs < TRACKPAD_VELOCITY_SAMPLE_WINDOW_MS) {
-        // Calculate velocity: pixels per millisecond
         const deltaTime = now - velocitySampleTs
         const velocity = (absDeltaClamped + Math.abs(lastTrackpadDeltaRef.current)) / deltaTime
         lastTrackpadDeltaRef.current = absDeltaClamped
         lastTrackpadDeltaTsRef.current = now
         
-        // CRITICAL: if still moving, reschedule finalize
         if (velocity > TRACKPAD_MIN_VELOCITY_TO_CONTINUE && gestureDirectionRef.current) {
           stopFinalizeTimer()
           scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
@@ -806,7 +801,7 @@ export default function HomePage() {
 
   useEffect(() => {
     tpLog('TP0', 'home mount marker', {
-      v: 'trackpad-v5-velocity',
+      v: 'trackpad-v6-caption-fix',
       path: location.pathname,
       hash: location.hash || '',
     })
