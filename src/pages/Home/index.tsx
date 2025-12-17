@@ -54,8 +54,10 @@ const TRACKPAD_DELTA_CUTOFF = 85
 // Trackpad vs mouse: treat a burst of wheel events as trackpad-like even if deltas are large.
 // This prevents "one tick = one full section" on touchpads and avoids skipping on fast scroll.
 const TRACKPAD_STREAM_CUTOFF_MS = 180
-// Trackpads can emit tiny deltas from slight finger jitter; ignore those to avoid "micro-moves" + snap-back glitches.
+// Trackpads can emit tiny deltas (1..5px). Don't start a gesture on a single tiny delta,
+// but DO allow slow gestures by accumulating until we cross a small threshold.
 const TRACKPAD_START_DELTA_PX = 6
+const TRACKPAD_START_ACCUM_WINDOW_MS = 120
 // Mouse wheels should advance faster (fewer "ticks" to cross the 50% threshold)
 const MOUSE_WHEEL_RANGE = 320
 
@@ -80,6 +82,8 @@ export default function HomePage() {
   const lastWheelClassifyLogTsRef = useRef(0)
   const lastTrackpadIgnoreLogTsRef = useRef(0)
   const trackpadIgnoredCountRef = useRef(0)
+  const trackpadStartSumRef = useRef(0)
+  const trackpadStartSumTsRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -192,6 +196,16 @@ export default function HomePage() {
     const v = Math.min(1, Math.max(0, next))
     footerProgressRef.current = v
     setFooterProgress(v)
+    // #region agent log
+    // Footer must ONLY move on the last slide; log any unexpected progress changes.
+    if (v > 0.02 && activeIndex !== lastSlideIndex) {
+      tpLog('F7', 'footerProgress changed while NOT on last slide', {
+        activeIndex,
+        lastSlideIndex,
+        next: v,
+      })
+    }
+    // #endregion
   }, [])
 
   const openFooter = useCallback(() => {
@@ -380,29 +394,47 @@ export default function HomePage() {
     // macOS trackpads can sometimes spike; clamping avoids accidental "skip" / jerks.
     const absDeltaClamped = isLikelyTrackpad ? Math.min(absDelta, 120) : absDelta
 
-    // Ignore tiny trackpad jitters when no gesture is in progress (reduces "double movement" feel).
+    // Don't start a gesture on a single tiny delta, but allow slow gestures to accumulate.
+    // Also prevent native scroll while the hero stack is handling wheel.
     if (isLikelyTrackpad && !gestureDirectionRef.current && absDelta < TRACKPAD_START_DELTA_PX) {
+      event.preventDefault()
+      const lastTs = trackpadStartSumTsRef.current || 0
+      if (!lastTs || (now - lastTs) > TRACKPAD_START_ACCUM_WINDOW_MS) {
+        trackpadStartSumRef.current = 0
+      }
+      trackpadStartSumTsRef.current = now
+      trackpadStartSumRef.current += absDelta
+
       // #region agent log
       trackpadIgnoredCountRef.current += 1
       if ((now - (lastTrackpadIgnoreLogTsRef.current || 0)) > 200) {
         lastTrackpadIgnoreLogTsRef.current = now
-        tpLog('TP5', 'trackpad tiny-delta ignored', {
+        tpLog('TP5', 'trackpad tiny-delta accumulated', {
           activeIndex,
           incomingIndex,
           absDelta,
           deltaY,
+          sum: trackpadStartSumRef.current,
           ignoredCount: trackpadIgnoredCountRef.current,
           cutoffPx: TRACKPAD_START_DELTA_PX,
+          windowMs: TRACKPAD_START_ACCUM_WINDOW_MS,
           wheelDt,
         })
-        // reset counter so we can see bursts
         trackpadIgnoredCountRef.current = 0
       }
       // #endregion
-      return
+
+      if (trackpadStartSumRef.current < TRACKPAD_START_DELTA_PX) {
+        return
+      }
+
+      // Threshold reached: allow gesture to start on this event.
+      trackpadStartSumRef.current = 0
+    } else {
+      // reset counters once we accept meaningful deltas
+      trackpadIgnoredCountRef.current = 0
+      trackpadStartSumRef.current = 0
     }
-    // reset ignore counter once we accept meaningful deltas
-    trackpadIgnoredCountRef.current = 0
 
     // #region agent log
     // Trackpad-only sampling: helps detect misclassification (mouse vs trackpad) and jitter bursts.
@@ -527,6 +559,17 @@ export default function HomePage() {
         stopFinalizeTimer()
         const wheelRange = Math.min(900, Math.max(260, window.innerHeight * 0.9))
         const nextProgress = Math.min(1, footerProgressRef.current + absDeltaClamped / wheelRange)
+        // #region agent log
+        tpLog('F8', 'footer gesture progress update (trackpad)', {
+          activeIndex,
+          lastSlideIndex,
+          before: footerProgressRef.current,
+          next: nextProgress,
+          absDeltaClamped,
+          wheelRange,
+          canOpenFooter,
+        })
+        // #endregion
         setFooterProgressSafe(nextProgress)
         setIsGesturing(true)
         finalizeTimerRef.current = window.setTimeout(() => {
