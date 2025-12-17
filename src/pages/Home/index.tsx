@@ -41,7 +41,8 @@ const SCROLL_DEBOUNCE = 520
 const SNAP_THRESHOLD = 0.5
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
 const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 110
-const TRACKPAD_MIN_VELOCITY_TO_CONTINUE = 0.8
+// Velocity threshold: if swipe is FAST, treat as instant like mouse (don't track progress)
+const TRACKPAD_FAST_VELOCITY_THRESHOLD = 1.5
 const TRACKPAD_VELOCITY_SAMPLE_WINDOW_MS = 50
 const TRACKPAD_DELTA_CUTOFF = 85
 const TRACKPAD_STREAM_CUTOFF_MS = 180
@@ -77,6 +78,8 @@ export default function HomePage() {
   const lastTrackpadDeltaTsRef = useRef(0)
   const finalizeAttemptCountRef = useRef(0)
   const lastFinalizeTimeRef = useRef(0)
+  // CRITICAL: detect if gesture is "fast" (like mouse) to skip progress tracking
+  const isFastGestureRef = useRef(false)
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
@@ -96,7 +99,7 @@ export default function HomePage() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         sessionId: 'debug-session',
-        runId: 'trackpad-v6-caption-fix',
+        runId: 'trackpad-v7-fast-commit',
         hypothesisId,
         location: 'frontend/src/pages/Home/index.tsx:tpLog',
         message,
@@ -150,6 +153,7 @@ export default function HomePage() {
       setIncomingIndex(null)
       setDirection(null)
       setIsGesturing(false)
+      isFastGestureRef.current = false
     }, delayMs)
   }, [stopGestureTimer])
 
@@ -173,6 +177,7 @@ export default function HomePage() {
     setDirection(null)
     setIsGesturing(false)
     finalizeAttemptCountRef.current = 0
+    isFastGestureRef.current = false
   }, [stopFinalizeTimer, stopGestureRaf, stopGestureTimer])
 
   const setFooterProgressSafe = useCallback((next: number) => {
@@ -217,7 +222,6 @@ export default function HomePage() {
 
     stopAnimationTimer()
     isAnimatingRef.current = true
-    // CRITICAL: immediately hide gesture state before animation starts
     setIsGesturing(false)
     setFromIndex(activeIndex)
     setIncomingIndex(safeIndex)
@@ -232,7 +236,6 @@ export default function HomePage() {
       isAnimatingRef.current = false
       lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
       setDirection(null)
-      // CRITICAL: ensure gesture state is cleared after animation
       setIsGesturing(false)
       animationTimerRef.current = null
     }, timeout)
@@ -267,13 +270,14 @@ export default function HomePage() {
       lastSlideIndex,
       dir,
       progress,
+      isFastGesture: isFastGestureRef.current,
       isFooterOpen,
       footerProgress: footerProgressRef.current,
       isAnimatingRef: isAnimatingRef.current,
       attemptCount: finalizeAttemptCountRef.current,
     })
 
-    if (progress >= SNAP_THRESHOLD) {
+    if (progress >= SNAP_THRESHOLD || isFastGestureRef.current) {
       if (dir === 'next' && activeIndex === lastSlideIndex) {
         const canOpenFooter = lastSlideArrivedAtRef.current > 0
           && (performance.now() - lastSlideArrivedAtRef.current) > 220
@@ -295,6 +299,7 @@ export default function HomePage() {
         nextIndex,
         dir,
         progress,
+        isFastGesture: isFastGestureRef.current,
       })
       scrollToIndex(nextIndex)
       return
@@ -360,14 +365,12 @@ export default function HomePage() {
         lastTrackpadDeltaRef.current = absDeltaClamped
         lastTrackpadDeltaTsRef.current = now
         
-        if (velocity > TRACKPAD_MIN_VELOCITY_TO_CONTINUE && gestureDirectionRef.current) {
-          stopFinalizeTimer()
-          scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
-          tpLog('TP2_VEL', 'high velocity detected, extended finalize', {
+        // CRITICAL: if velocity is HIGH, mark as fast gesture
+        if (velocity > TRACKPAD_FAST_VELOCITY_THRESHOLD) {
+          isFastGestureRef.current = true
+          tpLog('TP2_FAST', 'HIGH velocity detected - will commit instantly', {
             velocity: Math.round(velocity * 100) / 100,
-            threshold: TRACKPAD_MIN_VELOCITY_TO_CONTINUE,
-            absDeltaClamped,
-            deltaTime,
+            threshold: TRACKPAD_FAST_VELOCITY_THRESHOLD,
           })
         }
       } else {
@@ -513,6 +516,19 @@ export default function HomePage() {
     event.preventDefault()
 
     if (!isLikelyTrackpad) {
+      resetGesture()
+      const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
+      scrollToIndex(nextIndex)
+      return
+    }
+
+    // CRITICAL: if fast gesture detected, treat like mouse - commit immediately
+    if (isFastGestureRef.current) {
+      tpLog('TP4', 'fast-gesture: commit like mouse', {
+        activeIndex,
+        dir,
+        isFast: true,
+      })
       resetGesture()
       const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
       scrollToIndex(nextIndex)
@@ -801,7 +817,7 @@ export default function HomePage() {
 
   useEffect(() => {
     tpLog('TP0', 'home mount marker', {
-      v: 'trackpad-v6-caption-fix',
+      v: 'trackpad-v7-fast-commit',
       path: location.pathname,
       hash: location.hash || '',
     })
