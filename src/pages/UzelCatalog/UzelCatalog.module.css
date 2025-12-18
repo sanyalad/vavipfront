@@ -1,6 +1,6 @@
 .catalogPage {
   min-height: 100vh;
-  padding: calc(var(--header-h) + 32px) 0 var(--spacing-3xl);
+  padding: calc(var(--header-h) + clamp(24px, 3vw, 32px)) 0 clamp(var(--spacing-xl), 3vw, var(--spacing-3xl));
   background: radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.08), transparent 30%),
     radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.06), transparent 30%),
     var(--color-bg);
@@ -10,7 +10,7 @@
 .borkContainer {
   max-width: 1290px;
   margin: 0 auto;
-  padding: 0 var(--spacing-lg) var(--spacing-3xl);
+  padding: 0 clamp(var(--spacing-md), 2vw, var(--spacing-lg)) clamp(var(--spacing-xl), 3vw, var(--spacing-3xl));
 }
 
 .borkHero {
@@ -35,9 +35,16 @@
 
 .borkLayout {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 28px;
+  grid-template-columns: clamp(200px, 20vw, 260px) 1fr;
+  gap: clamp(20px, 2.5vw, 28px);
   align-items: start;
+}
+
+@media (max-width: 768px) {
+  .borkLayout {
+    grid-template-columns: 1fr;
+    gap: clamp(18px, 2.2vw, 24px);
+  }
 }
 
 .borkSidebar {
@@ -180,6 +187,23 @@
   height: 66%;
   display: grid;
   place-items: center;
+  position: relative;
+}
+
+.borkCardImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.borkCardMedia .nodeSvg {
+  display: none;
+}
+
+.borkCardMedia img[style*="display: none"] ~ .nodeSvg {
+  display: block;
 }
 
 .nodeSvg {
@@ -232,26 +256,149 @@
 }
 
 @media (max-width: 720px) {
+  .catalogPage {
+    padding: calc(var(--header-h) + clamp(16px, 4vw, 20px)) clamp(12px, 3vw, 16px) clamp(var(--spacing-lg), 4vw, var(--spacing-xl));
+  }
+
+  .borkContainer {
+    padding: 0 clamp(8px, 2vw, 12px) clamp(var(--spacing-md), 3vw, var(--spacing-lg));
+  }
+
+  .borkHero {
+    padding: clamp(12px, 2vw, 16px) 0 clamp(8px, 1.5vw, 10px);
+    margin-bottom: clamp(20px, 4vw, 24px);
+  }
+
+  .borkTitle {
+    font-size: clamp(18px, 5vw, 24px);
+    line-height: 1.3;
+  }
+
+  .borkSubtitle {
+    font-size: clamp(11px, 3vw, 13px);
+    margin-top: clamp(6px, 1.5vw, 8px);
+  }
+
   .borkLayout {
     grid-template-columns: 1fr;
+    gap: clamp(16px, 3vw, 20px);
   }
+
   .borkGrid {
-    grid-template-columns: 1fr;
-    gap: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(12px, 2.5vw, 16px);
   }
+
   .borkSidebar {
     padding-top: 0;
-    margin-bottom: 16px;
+    margin-bottom: clamp(12px, 2.5vw, 16px);
   }
+
   .borkCategoryList {
     grid-auto-flow: column;
     grid-auto-columns: max-content;
     overflow-x: auto;
-    gap: 14px;
-    padding-bottom: 8px;
+    gap: clamp(10px, 2vw, 14px);
+    padding-bottom: clamp(6px, 1.5vw, 8px);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
+
+  .borkCategoryList::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .borkCategoryList::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .borkCategoryList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
   .borkCategoryLink {
     white-space: nowrap;
+    font-size: clamp(13px, 3.5vw, 15px);
+    padding: clamp(6px, 1.5vw, 8px) 0;
+  }
+
+  .borkSection {
+    margin-top: 0;
+  }
+
+  .borkSectionTop {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: clamp(10px, 2vw, 14px);
+    margin-bottom: clamp(14px, 3vw, 18px);
+  }
+
+  .borkShopLink {
+    width: 100%;
+  }
+
+  .borkSectionLead {
+    font-size: clamp(12px, 3vw, 14px);
+    line-height: 1.5;
+  }
+
+  .borkShopLink {
+    height: clamp(36px, 8vw, 40px);
+    padding: 0 clamp(14px, 3vw, 18px);
+    font-size: clamp(10px, 2.5vw, 12px);
+    width: 100%;
+    justify-content: center;
+  }
+
+  .borkTile {
+    aspect-ratio: 4 / 3;
+    min-height: 100px;
+    max-height: 140px;
+    border-radius: clamp(8px, 2vw, 12px);
+  }
+
+  .borkTileMark {
+    left: clamp(10px, 2.5vw, 14px);
+    top: clamp(10px, 2.5vw, 14px);
+    font-size: clamp(9px, 2vw, 11px);
+  }
+
+  .borkPlus {
+    top: clamp(10px, 2.5vw, 12px);
+    right: clamp(10px, 2.5vw, 12px);
+    width: clamp(24px, 5vw, 28px);
+    height: clamp(24px, 5vw, 28px);
+    font-size: clamp(14px, 3.5vw, 16px);
+  }
+
+  .borkCardMedia {
+    width: 40%;
+    height: 40%;
+  }
+
+  .borkInfo {
+    padding: clamp(6px, 1.5vw, 8px) clamp(2px, 0.5vw, 4px) 0;
+  }
+
+  .borkName {
+    font-size: clamp(13px, 3vw, 15px);
+    margin: 0 0 clamp(4px, 1vw, 6px);
+    line-height: 1.3;
+  }
+
+  .borkPriceRow {
+    gap: clamp(6px, 1.5vw, 8px);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .borkPrice {
+    font-size: clamp(12px, 2.8vw, 14px);
+  }
+
+  .borkTag {
+    font-size: clamp(10px, 2.2vw, 12px);
   }
 }
 

@@ -42,25 +42,8 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const primedRef = useRef(false)
   const lastVideoLogTsRef = useRef(0)
   const isActiveRef = useRef(false)
-
-  // #region agent log
-  const vsLog = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e', {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'trackpad-v3',
-        hypothesisId,
-        location: 'frontend/src/components/animations/VideoSection.tsx:vsLog',
-        message,
-        data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-  }, [])
-  // #endregion
+  const lastPlayedActiveIndexRef = useRef<number | null>(null)
+  const lastPlayedTimestampRef = useRef<number>(0)
 
   useImperativeHandle(forwardedRef, () => sectionRef.current as HTMLElement)
 
@@ -113,15 +96,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
           ;(p as Promise<void>).catch(() => {})
         }
       }
-      // #region agent log
-      vsLog('V2', 'video canplay', {
-        id,
-        index,
-        readyState: video.readyState,
-        paused: video.paused,
-        networkState: video.networkState,
-      })
-      // #endregion
+      
     }
 
     const handleLoadedMetadata = () => {
@@ -136,15 +111,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
           ;(p as Promise<void>).catch(() => {})
         }
       }
-      // #region agent log
-      vsLog('V2', 'video loadedmetadata', {
-        id,
-        index,
-        readyState: video.readyState,
-        paused: video.paused,
-        networkState: video.networkState,
-      })
-      // #endregion
+      
     }
 
     // Check if already loaded
@@ -170,50 +137,51 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     primeVideo()
 
     if (isActive) {
-      // #region agent log
-      const shouldPlay = isVideoReady || video.readyState >= HTMLMediaElement.HAVE_METADATA
-      // Throttle in case of rapid toggles
+      // CRITICAL: Check if video is already playing to avoid unnecessary play() calls
+      // that can cause stuttering and double activation
+      // CRITICAL: Also check if we already played for this activeIndex to prevent double activation after snap back
+      // This prevents re-activation when isActive changes twice (once in scrollToIndex, once after animation/snap back)
+      // CRITICAL: Also check timestamp to prevent double activation within short time window (e.g., 500ms)
+      // BUT: If video was paused (e.g., after snap back), allow play even if timeSinceLastPlay < 1000ms
+      // This prevents video from not playing after snap back when isActive becomes true again
       const now = performance.now()
-      if ((now - (lastVideoLogTsRef.current || 0)) > 120) {
-        lastVideoLogTsRef.current = now
-        vsLog('V1', 'active play decision', {
-          id,
-          index,
-          shouldPlay,
-          isVideoReady,
-          readyState: video.readyState,
-          paused: video.paused,
-          currentTime: Math.round(video.currentTime * 1000) / 1000,
-        })
-      }
-      // #endregion
-      // Only play if video is ready, otherwise wait
-      if (shouldPlay) {
+      const timeSinceLastPlay = now - lastPlayedTimestampRef.current
+      // Allow play if: video is paused AND (lastPlayedIndex is different OR enough time passed OR video was paused)
+      // The "video.paused" check ensures we can restart video after snap back even if timeSinceLastPlay < 1000ms
+      const shouldPlayVideo = video.paused && (lastPlayedActiveIndexRef.current !== index || timeSinceLastPlay > 500 || video.currentTime === 0)
+      
+      if (shouldPlayVideo) {
+        lastPlayedActiveIndexRef.current = index
+        lastPlayedTimestampRef.current = now
         const p = video.play()
         if (p && typeof (p as Promise<void>).then === 'function') {
           ;(p as Promise<void>)
             .then(() => {
-              // #region agent log
-              vsLog('V1', 'play resolved', { id, index, paused: video.paused, readyState: video.readyState })
-              // #endregion
+              
             })
             .catch((err: any) => {
-              // #region agent log
-              vsLog('V1', 'play rejected', {
-                id,
-                index,
-                name: err?.name ?? 'unknown',
-                // keep short to avoid dumping huge strings
-                message: String(err?.message ?? '').slice(0, 80),
-              })
-              // #endregion
+              
             })
         }
       }
     } else {
-      video.pause()
+      // CRITICAL: Reset lastPlayedActiveIndexRef when section becomes inactive
+      // This allows video to play again when section becomes active again (e.g., after scrolling back)
+      // BUT: Only reset if enough time has passed to prevent double activation during rapid isActive changes
+      // CRITICAL: Also check if video is actually paused to prevent reset during snap back
+      // CRITICAL: Reset immediately if video is paused and currentTime is 0 (video was reset)
+      const now = performance.now()
+      const timeSinceLastPlay = now - lastPlayedTimestampRef.current
+      if (lastPlayedActiveIndexRef.current === index && video.paused && (timeSinceLastPlay > 1000 || video.currentTime === 0)) {
+        lastPlayedActiveIndexRef.current = null
+        
+      }
+      // Only pause if video is actually playing to avoid unnecessary operations
+      if (!video.paused) {
+        video.pause()
+      }
     }
-  }, [isActive, isVideoReady])
+  }, [isActive, isVideoReady, primeVideo])
 
   // Prime when секция появляется в viewport (даже если не активна)
   useEffect(() => {
@@ -301,6 +269,8 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
       data-state={isActive ? 'active' : isPrev ? 'prev' : isNext ? 'next' : 'idle'}
       data-direction={direction || 'idle'}
       data-video-ready={isVideoReady}
+      data-is-next={isNext ? 'true' : 'false'}
+      data-is-prev={isPrev ? 'true' : 'false'}
     >
       <video
         ref={videoRef}

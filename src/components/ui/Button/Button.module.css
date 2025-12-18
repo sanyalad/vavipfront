@@ -65,21 +65,21 @@
 
 /* Sizes */
 .sm {
-  padding: var(--spacing-xs) var(--spacing-md);
-  font-size: var(--font-size-xs);
-  height: 32px;
+  padding: clamp(var(--spacing-xs), 0.3vw, var(--spacing-xs)) clamp(var(--spacing-sm), 1vw, var(--spacing-md));
+  font-size: clamp(var(--font-size-xs), 0.8vw, var(--font-size-xs));
+  height: clamp(30px, 3.5vw, 32px);
 }
 
 .md {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  font-size: var(--font-size-sm);
-  height: 44px;
+  padding: clamp(var(--spacing-xs), 0.5vw, var(--spacing-sm)) clamp(var(--spacing-md), 1.5vw, var(--spacing-lg));
+  font-size: clamp(var(--font-size-xs), 0.9vw, var(--font-size-sm));
+  height: clamp(40px, 4.5vw, 44px);
 }
 
 .lg {
-  padding: var(--spacing-md) var(--spacing-xl);
-  font-size: var(--font-size-base);
-  height: 52px;
+  padding: clamp(var(--spacing-sm), 0.8vw, var(--spacing-md)) clamp(var(--spacing-lg), 2vw, var(--spacing-xl));
+  font-size: clamp(var(--font-size-sm), 1vw, var(--font-size-base));
+  height: clamp(48px, 5vw, 52px);
 }
 
 /* Full width */
@@ -121,6 +121,7 @@
   width: 18px;
   height: 18px;
 }
+
 
 
 

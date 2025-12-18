@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/images/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="description" content="Vavip - Премиальные инженерные системы, проектирование BIM, монтаж и продажа оборудования" />
     <meta name="theme-color" content="#0a0a0a" />
     <title>Vavip - Инженерные системы</title>
@@ -23,15 +23,18 @@
         opacity: 0;
         transform: translateY(12px);
         filter: blur(2px);
+        visibility: hidden;
       }
       html.intro-static-done #root {
-        opacity: 1;
+        opacity: 1 !important;
         transform: translateY(0);
         filter: blur(0);
+        visibility: visible !important;
         transition:
           opacity 0.6s ease 0.18s,
           transform 0.7s cubic-bezier(0.23, 0.9, 0.15, 1) 0.18s,
-          filter 0.6s ease 0.18s;
+          filter 0.6s ease 0.18s,
+          visibility 0s linear 0.18s;
       }
 
       .intro-static {
@@ -41,6 +44,11 @@
         background: #0a0a0a;
         pointer-events: all;
         opacity: 1;
+      }
+      
+      .intro-static.intro-static--out {
+        pointer-events: none;
+        z-index: -1;
       }
 
       /* Fade only when we explicitly finish (prevents "logo disappears" gap) */
@@ -87,8 +95,34 @@
         }
       }
 
+      /* Simplified animation for mobile - just fade out */
+      @media (max-width: 719px) {
+        .intro-static.intro-static--fly .intro-static__logo {
+          animation:
+            introLogoIn 0.45s cubic-bezier(0.25, 0.85, 0.2, 1) forwards,
+            introLogoFadeOut 0.5s ease forwards;
+          animation-delay: 0.05s, 1.2s;
+        }
+
+        @keyframes introLogoFadeOut {
+          from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+          }
+        }
+      }
+
       @keyframes introFadeOut {
-        to { opacity: 0; pointer-events: none; }
+        to { 
+          opacity: 0; 
+          pointer-events: none;
+          visibility: hidden;
+          z-index: -1;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -112,7 +146,26 @@
 
         function computeAnchorVars() {
           if (!intro || !logo) return false;
+          
+          // Try to find anchor in desktop header first
           var anchor = document.querySelector('[data-intro-anchor="logo"] img') || document.querySelector('[data-intro-anchor="logo"]');
+          
+          // If not found, try mobile bar logo (for mobile devices)
+          if (!anchor) {
+            var mobileBar = document.querySelector('.mobileBarCenter');
+            if (mobileBar) {
+              anchor = mobileBar.querySelector('img');
+            }
+          }
+          
+          // If still not found, try any header logo
+          if (!anchor) {
+            var headerCenter = document.querySelector('.headerCenter');
+            if (headerCenter) {
+              anchor = headerCenter.querySelector('img');
+            }
+          }
+          
           if (!anchor || !anchor.getBoundingClientRect) return false;
 
           var a = anchor.getBoundingClientRect();
@@ -136,33 +189,62 @@
           return true;
         }
 
+        // Check if mobile device
+        var isMobile = window.innerWidth <= 719;
+
         // Start fly after a short "hold", but ensure we have anchor vars first.
+        // On mobile, skip anchor computation and just add fly class
         window.setTimeout(function () {
           if (intro) {
-            // try a few frames to catch React render
-            var tries = 0;
-            (function tick() {
-              tries++;
-              var ok = computeAnchorVars();
-              if (ok || tries > 60) {
-                intro.classList.add('intro-static--fly');
-                return;
-              }
-              requestAnimationFrame(tick);
-            })();
+            if (isMobile) {
+              // On mobile: simple fade out, no anchor computation needed
+              intro.classList.add('intro-static--fly');
+            } else {
+              // On desktop: try a few frames to catch React render for anchor
+              var tries = 0;
+              (function tick() {
+                tries++;
+                var ok = computeAnchorVars();
+                if (ok || tries > 60) {
+                  intro.classList.add('intro-static--fly');
+                  return;
+                }
+                requestAnimationFrame(tick);
+              })();
+            }
           }
-        }, 750);
+        }, isMobile ? 500 : 750);
 
-        // Total timeline: hold + fly + fade
+        // Total timeline: hold + fly/fade + fade out
+        // Mobile: 500ms hold + 450ms logo in + 500ms fade out = ~1450ms
+        // Desktop: 750ms hold + 450ms logo in + 900ms fly + 450ms fade = ~2900ms
+        var totalTime = isMobile ? 2000 : 2900;
         window.setTimeout(function () {
           root.classList.remove('intro-static-active');
           root.classList.add('intro-static-done');
-          if (intro) intro.classList.add('intro-static--out');
-          window.setTimeout(function () {
-            var el = document.getElementById('intro-static');
-            if (el && el.parentNode) el.parentNode.removeChild(el);
-          }, 520);
-        }, 2900);
+          if (intro) {
+            intro.classList.add('intro-static--out');
+            // Ensure intro is removed after animation
+            window.setTimeout(function () {
+              var el = document.getElementById('intro-static');
+              if (el) {
+                el.style.display = 'none';
+                el.style.visibility = 'hidden';
+                el.style.opacity = '0';
+                el.style.pointerEvents = 'none';
+                if (el.parentNode) {
+                  el.parentNode.removeChild(el);
+                }
+              }
+              // Force root to be visible
+              var rootEl = document.getElementById('root');
+              if (rootEl) {
+                rootEl.style.opacity = '1';
+                rootEl.style.visibility = 'visible';
+              }
+            }, 520);
+          }
+        }, totalTime);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

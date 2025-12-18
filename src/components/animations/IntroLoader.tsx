@@ -17,8 +17,25 @@ export default function IntroLoader() {
   const loaderRef = useRef<HTMLDivElement>(null)
   const timersRef = useRef<number[]>([])
 
+  // Safety: Clean up intro-active class on mount if it's stuck
+  useEffect(() => {
+    if (typeof document !== 'undefined' && document.body) {
+      // If intro-active is stuck, remove it after a short delay
+      const cleanupTimer = setTimeout(() => {
+        if (document.body.classList.contains('intro-active') && phase === 'hidden') {
+          document.body.classList.remove('intro-active')
+          document.body.classList.add('intro-revealed')
+        }
+      }, 100)
+      return () => clearTimeout(cleanupTimer)
+    }
+  }, [phase])
+
   // Use layout effect so the intro locks and overlay are applied before first paint (no "blink").
   useLayoutEffect(() => {
+    // Safety check: ensure we're in browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined' || !document.body) return
+    
     // Drive the intro purely off local component state.
     // `isIntroComplete` in the store can be true due to previous sessions/HMR; it must not disable the intro.
     if (phase !== 'logo') return
@@ -38,16 +55,22 @@ export default function IntroLoader() {
     const flyTimer = window.setTimeout(() => {
       setPhase('fly')
       window.setTimeout(() => {
-        document.body.classList.add('intro-revealed')
+        if (document.body) {
+          document.body.classList.add('intro-revealed')
+        }
       }, revealDelay)
     }, logoDisplay)
 
     const hideTimer = window.setTimeout(() => {
       setPhase('hidden')
-      document.body.classList.remove('intro-active')
-      document.body.classList.add('intro-revealed')
+      if (document.body) {
+        document.body.classList.remove('intro-active')
+        document.body.classList.add('intro-revealed')
+      }
       setIntroComplete(true)
-      window.scrollTo(0, 0)
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0)
+      }
     }, logoDisplay + logoFly)
 
     timersRef.current = [flyTimer, hideTimer]
@@ -55,16 +78,21 @@ export default function IntroLoader() {
     return () => {
       timersRef.current.forEach(clearTimeout)
       timersRef.current = []
-      document.body.classList.remove('intro-active')
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.remove('intro-active')
+      }
     }
   }, [phase, setIntroComplete])
 
   // Fallback timeout
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const fallbackTimer = setTimeout(() => {
       if (phase !== 'hidden') {
         setPhase('hidden')
-        document.body.classList.remove('intro-active')
+        if (typeof document !== 'undefined' && document.body) {
+          document.body.classList.remove('intro-active')
+        }
         setIntroComplete(true)
       }
     }, 2500)
@@ -88,8 +116,10 @@ export default function IntroLoader() {
       onClick={() => {
         timersRef.current.forEach(clearTimeout)
         setPhase('hidden')
-        document.body.classList.remove('intro-active')
-        document.body.classList.add('intro-revealed')
+        if (typeof document !== 'undefined' && document.body) {
+          document.body.classList.remove('intro-active')
+          document.body.classList.add('intro-revealed')
+        }
         setIntroComplete(true)
       }}
     >

@@ -1,68 +1,160 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useSearchParams } from 'react-router-dom'
+import { useUIStore } from '@/store/uiStore'
+import { detectPlatform } from '@/utils/platform'
 import styles from './Contacts.module.css'
 
-type Department = 'montazh' | 'uzel' | 'bim' | 'shop'
-type Country = 'uae' | 'georgia' | 'russia' | 'belarus' | 'kazakhstan'
+type Department = 'uzel' | 'montazh' | 'bim' | 'shop'
+type Country = 'russia' | 'kazakhstan' | 'belarus' | 'georgia' | 'uae'
 
-const departments: { id: Department; label: string }[] = [
-  { id: 'montazh', label: 'Монтаж' },
-  { id: 'uzel', label: 'Узел ввода' },
-  { id: 'bim', label: 'Проектирование' },
-  { id: 'shop', label: 'Магазин' },
+interface DepartmentOption {
+  id: Department
+  label: string
+  needsLocation: boolean // true = нужен выбор страны/города
+}
+
+const departments: DepartmentOption[] = [
+  { id: 'uzel', label: 'Узел ввода', needsLocation: true },
+  { id: 'montazh', label: 'Монтаж', needsLocation: true },
+  { id: 'bim', label: 'Проектирование', needsLocation: false },
+  { id: 'shop', label: 'Магазин', needsLocation: false },
 ]
 
 const countries: { id: Country; label: string }[] = [
-  { id: 'uae', label: 'ОАЭ' },
-  { id: 'georgia', label: 'Грузия' },
   { id: 'russia', label: 'Россия' },
-  { id: 'belarus', label: 'Беларусь' },
   { id: 'kazakhstan', label: 'Казахстан' },
+  { id: 'belarus', label: 'Беларусь' },
+  { id: 'georgia', label: 'Грузия' },
+  { id: 'uae', label: 'ОАЭ' },
 ]
 
 const citiesByCountry: Record<Country, string[]> = {
-  uae: ['Dubai', 'Abu Dhabi', 'Sharjah'],
-  georgia: ['Tbilisi', 'Batumi', 'Kutaisi'],
   russia: ['Москва', 'Санкт-Петербург', 'Краснодар', 'Ростов-на-Дону', 'Самара', 'Воронеж'],
-  belarus: ['Минск', 'Гомель', 'Брест'],
   kazakhstan: ['Астана', 'Алматы', 'Актобе'],
+  belarus: ['Минск', 'Гомель', 'Брест'],
+  georgia: ['Тбилиси', 'Батуми', 'Кутаиси'],
+  uae: ['Дубай', 'Абу-Даби', 'Шарджа'],
 }
 
 const phoneMap: Record<Country, Record<Department, string>> = {
-  russia: { montazh: '+7 1111111', uzel: '+7 1222222', bim: '+7 1333333', shop: '+7 1444444' },
-  kazakhstan: { montazh: '+7 2111111', uzel: '+7 2222222', bim: '+7 2333333', shop: '+7 2444444' },
-  belarus: { montazh: '+375 3111111', uzel: '+375 3222222', bim: '+375 3333333', shop: '+375 3444444' },
-  georgia: { montazh: '+995 4111111', uzel: '+995 4222222', bim: '+995 4333333', shop: '+995 4444444' },
-  uae: { montazh: '+971 5111111', uzel: '+971 5222222', bim: '+971 5333333', shop: '+971 5444444' },
+  russia: { montazh: '+7 111 111 11 11', uzel: '+7 122 222 22 22', bim: '+7 133 333 33 33', shop: '+7 144 444 44 44' },
+  kazakhstan: { montazh: '+7 211 111 11 11', uzel: '+7 222 222 22 22', bim: '+7 233 333 33 33', shop: '+7 244 444 44 44' },
+  belarus: { montazh: '+375 31 111 11 11', uzel: '+375 32 222 22 22', bim: '+375 33 333 33 33', shop: '+375 34 444 44 44' },
+  georgia: { montazh: '+995 411 111 111', uzel: '+995 422 222 222', bim: '+995 433 333 333', shop: '+995 444 444 444' },
+  uae: { montazh: '+971 51 111 1111', uzel: '+971 52 222 2222', bim: '+971 53 333 3333', shop: '+971 54 444 4444' },
 }
 
-export default function ContactsPage() {
-  const [showFeedback, setShowFeedback] = useState(false)
-  const feedbackRef = useRef<HTMLDivElement>(null)
-  const [department, setDepartment] = useState<Department>('uzel')
-  const [country, setCountry] = useState<Country>('russia')
-  const [city, setCity] = useState<string>('Москва')
+// Для bim и shop — единые контакты без привязки к стране
+const globalContacts: Partial<Record<Department, { phone: string; email: string }>> = {
+  bim: { phone: '+7 931 248 70 13', email: 'bim@vavip.ru' },
+  shop: { phone: '+7 931 248 70 13', email: 'shop@vavip.ru' },
+}
 
+type Step = 'department' | 'country' | 'city' | 'contacts'
+
+export default function ContactsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { addToast } = useUIStore()
+  const [step, setStep] = useState<Step>('department')
+  const [department, setDepartment] = useState<Department | null>(null)
+  const [country, setCountry] = useState<Country | null>(null)
+  const [city, setCity] = useState<string | null>(null)
+
+  const selectedDept = departments.find((d) => d.id === department)
+
+  // Initialize from URL parameter or pathname
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (feedbackRef.current && !feedbackRef.current.contains(e.target as Node)) {
-        setShowFeedback(false)
+    // Check URL pathname first (for /services/bim, /services/montazh)
+    const pathname = window.location.pathname
+    let deptParam: Department | null = null
+    
+    if (pathname === '/services/bim') {
+      deptParam = 'bim'
+    } else if (pathname === '/services/montazh') {
+      deptParam = 'montazh'
+    } else {
+      // Fallback to URL search params
+      deptParam = searchParams.get('department') as Department | null
+    }
+    
+    if (deptParam && departments.some((d) => d.id === deptParam)) {
+      const dept = departments.find((d) => d.id === deptParam)
+      if (dept) {
+        setDepartment(deptParam)
+        if (dept.needsLocation) {
+          setStep('country')
+        } else {
+          setStep('contacts')
+        }
       }
     }
-    if (showFeedback) {
-      document.addEventListener('mousedown', handleClickOutside)
+  }, [searchParams])
+
+  const handleDepartmentSelect = (dept: DepartmentOption) => {
+    setDepartment(dept.id)
+    if (dept.needsLocation) {
+      setStep('country')
+    } else {
+      // bim/shop — сразу показываем контакты
+      setStep('contacts')
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showFeedback])
+  }
 
-  // When country changes, set a sensible default city.
-  // IMPORTANT: do NOT validate/reset city on every keystroke, иначе невозможно вводить/редактировать.
-  useEffect(() => {
-    const cities = citiesByCountry[country]
-    setCity(cities[0] || '')
-  }, [country])
+  const handleCountrySelect = (c: Country) => {
+    setCountry(c)
+    setStep('city')
+  }
 
-  const selectedPhone = phoneMap[country]?.[department] ?? '+7 0000000'
+  const handleCitySelect = (c: string) => {
+    setCity(c)
+    setStep('contacts')
+  }
+
+  const handleBack = () => {
+    if (step === 'contacts') {
+      if (selectedDept?.needsLocation) {
+        setStep('city')
+      } else {
+        setStep('department')
+        setDepartment(null)
+      }
+    } else if (step === 'city') {
+      setStep('country')
+      setCity(null)
+    } else if (step === 'country') {
+      setStep('department')
+      setDepartment(null)
+      setCountry(null)
+    }
+  }
+
+  const handleReset = () => {
+    setStep('department')
+    setDepartment(null)
+    setCountry(null)
+    setCity(null)
+  }
+
+  // Получаем телефон
+  const getPhone = () => {
+    if (!department) return ''
+    if (selectedDept?.needsLocation && country) {
+      return phoneMap[country]?.[department] ?? ''
+    }
+    return globalContacts[department]?.phone ?? ''
+  }
+
+  const getEmail = () => {
+    if (!department) return ''
+    return globalContacts[department]?.email ?? ''
+  }
+
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+    exit: { opacity: 0, y: -20, transition: { duration: 0.2 } },
+  }
 
   return (
     <motion.div
@@ -71,157 +163,212 @@ export default function ContactsPage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <section className={styles.pageIntro}>
-        <div className={styles.pageIntroInner}>
-          <h1 className={styles.pageTitle}>Контакты</h1>
-          <p className={styles.pageLead}>
-            Свяжитесь с нами или выберите ближайший офис. Работаем премиально: быстро, прозрачно, в едином стиле.
-          </p>
-        </div>
-      </section>
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>Контакты</h1>
 
-      <section className={styles.cardsGrid}>
-        <div className={`${styles.card} ${styles.cardFeedback}`}>
-          <div className={styles.cardOverlay} />
-          <div className={styles.cardContent}>
-            <p className={styles.cardKicker}>Связаться</p>
-            <h2 className={styles.cardTitle}>{selectedPhone}</h2>
-            <p className={styles.cardSubtitle}>Каждый день с 8:00 до 22:00</p>
-
-            <div className={styles.phoneSelectors} aria-label="Параметры связи">
-              <label className={styles.selectorField}>
-                <span className={styles.selectorLabel}>Отдел</span>
-                <select
-                  className={styles.selectorControl}
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value as Department)}
-                >
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={styles.selectorField}>
-                <span className={styles.selectorLabel}>Страна</span>
-                <select
-                  className={styles.selectorControl}
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value as Country)}
-                >
-                  {countries.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={styles.selectorField}>
-                <span className={styles.selectorLabel}>Город</span>
-                <input
-                  className={styles.selectorControl}
-                  list={`cities-${country}`}
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Начните вводить…"
-                />
-                <datalist id={`cities-${country}`}>
-                  {citiesByCountry[country].map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </label>
-            </div>
-
-            <div className={styles.cardActions}>
-              <button className={styles.cardButton} onClick={() => setShowFeedback(true)}>Обратная связь</button>
-              <div className={styles.socialRow}>
-                <a href="https://www.youtube.com" aria-label="YouTube" className={styles.socialIcon}>▶</a>
-                <a href="https://vk.com" aria-label="VK" className={styles.socialIcon}>VK</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className={`${styles.card} ${styles.cardOffices}`}>
-          <div className={styles.cardOverlay} />
-          <div className={styles.cardContent}>
-            <p className={styles.cardKicker}>Бутики / Офисы</p>
-            <h2 className={styles.cardTitle}>Познакомьтесь с коллекцией</h2>
-            <p className={styles.cardSubtitle}>
-              Узлы ввода, проектирование и монтаж. Запишитесь, чтобы увидеть решения вживую.
-            </p>
-            <div className={styles.cardActions}>
-              <a className={styles.cardButtonSecondary} href="#map">Выбрать офис</a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.mapSection} id="map">
-        <div className={styles.mapHeader}>
-          <div>
-            <p className={styles.cardKicker}>Карта</p>
-            <h3 className={styles.mapTitle}>Найдите ближайший офис</h3>
-            <p className={styles.cardSubtitle}>Определите местоположение и выберите удобный бутик или пункт выдачи.</p>
-          </div>
-          <button className={styles.mapButton}>Определить автоматически</button>
-        </div>
-        <div className={styles.mapPlaceholder}>
-          <span>Здесь будет интерактивная карта с выбором ближайшего офиса</span>
-        </div>
-      </section>
-
-      <AnimatePresence>
-        {showFeedback && (
-          <motion.div
-            className={styles.feedbackPanel}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <div ref={feedbackRef} className={styles.feedbackForm}>
-              <button
-                type="button"
-                className={styles.formClose}
-                onClick={() => setShowFeedback(false)}
-                aria-label="Закрыть форму"
-              >
-                ×
-              </button>
-              <div className={styles.formInner}>
-                <label htmlFor="topic">Тема</label>
-                <label htmlFor="email">Email</label>
-                
-                <select id="topic" name="topic" required>
-                  <option value="quality_products">Качество продуктов, услуг и доставки</option>
-                  <option value="support">Техническая поддержка</option>
-                  <option value="other">Другое</option>
-                </select>
-                <input id="email" name="email" type="email" required />
-                
-                <label htmlFor="name">Имя <span className={styles.required}>*</span></label>
-                <label htmlFor="phone">Телефон <span className={styles.required}>*</span></label>
-                
-                <input id="name" name="name" type="text" required />
-                <input id="phone" name="phone" type="tel" required placeholder="+7 (___) ___-__-__" />
-                
-                <label htmlFor="message" className={styles.fullWidth}>Комментарий</label>
-                <textarea id="message" name="message" required rows={2} className={styles.fullWidth} />
-                
-                <div className={styles.submitWrapper}>
-                  <button type="submit" className={styles.submitBtn}>
-                    ОТПРАВИТЬ
+        <AnimatePresence mode="wait">
+          {/* Шаг 1: Выбор отдела — горизонтальные плитки */}
+          {step === 'department' && (
+            <motion.div
+              key="department"
+              className={styles.stepContent}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <p className={styles.stepQuestion}>Куда вы хотите позвонить?</p>
+              <div className={`${styles.optionsGrid} ${styles.departmentGrid}`}>
+                {departments.map((dept) => (
+                  <button
+                    key={dept.id}
+                    className={styles.optionButton}
+                    onClick={() => handleDepartmentSelect(dept)}
+                  >
+                    {dept.label}
                   </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Шаг 2: Выбор страны */}
+          {step === 'country' && (
+            <motion.div
+              key="country"
+              className={styles.stepContent}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <p className={styles.stepQuestion}>Выберите страну</p>
+              <div className={`${styles.optionsGrid} ${styles.secondaryGrid}`}>
+                {countries.map((c) => (
+                  <button
+                    key={c.id}
+                    className={styles.optionButton}
+                    onClick={() => handleCountrySelect(c.id)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <button className={styles.backButton} onClick={handleBack}>
+                Назад
+              </button>
+            </motion.div>
+          )}
+
+          {/* Шаг 3: Выбор города */}
+          {step === 'city' && country && (
+            <motion.div
+              key="city"
+              className={styles.stepContent}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <p className={styles.stepQuestion}>Выберите город</p>
+              <div className={`${styles.optionsGrid} ${styles.secondaryGrid}`}>
+                {citiesByCountry[country].map((c) => (
+                  <button
+                    key={c}
+                    className={styles.optionButton}
+                    onClick={() => handleCitySelect(c)}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <button className={styles.backButton} onClick={handleBack}>
+                Назад
+              </button>
+            </motion.div>
+          )}
+
+          {/* Шаг 4: Контакты */}
+          {step === 'contacts' && (
+            <motion.div
+              key="contacts"
+              className={styles.stepContent}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <div className={styles.contactsCard}>
+                <p className={styles.contactsLabel}>
+                  {selectedDept?.label}
+                  {city && country && ` · ${city}`}
+                </p>
+                
+                <a 
+                  href={`tel:${getPhone().replace(/\s/g, '')}`} 
+                  className={styles.phoneNumber}
+                  onClick={async (e) => {
+                    const phoneNumber = getPhone().replace(/\s/g, '')
+                    // Detect platform using centralized utility
+                    const platformInfo = detectPlatform()
+                    
+                    // Helper function to copy phone with notification
+                    const copyPhoneWithNotification = async () => {
+                      try {
+                        if (navigator.clipboard?.writeText) {
+                          await navigator.clipboard.writeText(getPhone())
+                        } else {
+                          const ta = document.createElement('textarea')
+                          ta.value = getPhone()
+                          ta.setAttribute('readonly', 'true')
+                          ta.style.position = 'fixed'
+                          ta.style.left = '-9999px'
+                          document.body.appendChild(ta)
+                          ta.select()
+                          document.execCommand('copy')
+                          document.body.removeChild(ta)
+                        }
+                        addToast({ type: 'success', message: 'Номер скопирован в буфер обмена' })
+                      } catch {
+                        // ignore clipboard failures
+                      }
+                    }
+                    
+                    // On mobile, let tel: link work normally
+                    if (platformInfo.isMobile) {
+                      // Try to copy as well
+                      await copyPhoneWithNotification()
+                      return
+                    }
+                    
+                    // On desktop (including Mac), try tel: first, then copy
+                    e.preventDefault()
+                    try {
+                      const telLink = document.createElement('a')
+                      telLink.href = `tel:${phoneNumber}`
+                      telLink.style.display = 'none'
+                      document.body.appendChild(telLink)
+                      telLink.click()
+                      document.body.removeChild(telLink)
+                      setTimeout(async () => {
+                        await copyPhoneWithNotification()
+                      }, 100)
+                    } catch {
+                      // If tel: fails, just copy
+                      await copyPhoneWithNotification()
+                    }
+                  }}
+                >
+                  {getPhone()}
+                </a>
+                
+                {getEmail() && (
+                  <a href={`mailto:${getEmail()}`} className={styles.emailLink}>
+                    {getEmail()}
+                  </a>
+                )}
+                
+                <p className={styles.workHours}>Ежедневно с 8:00 до 22:00</p>
+                
+                {/* Social Links */}
+                <div className={styles.socialLinks}>
+                  <a 
+                    href="https://t.me/karen_vavip" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={styles.socialLink}
+                    aria-label="Telegram"
+                  >
+                    <img src="/images/icons/telegram.svg" alt="Telegram" />
+                  </a>
+                  <a 
+                    href="https://instagram.com/karen_vavip" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={styles.socialLink}
+                    aria-label="Instagram"
+                  >
+                    <img src="/images/icons/instagram.svg" alt="Instagram" />
+                  </a>
+                  <a 
+                    href="https://vk.com/karen_vavip" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={styles.socialLink}
+                    aria-label="VKontakte"
+                  >
+                    <img src="/images/icons/vk.svg" alt="VK" />
+                  </a>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              
+              <button className={styles.resetButton} onClick={handleReset}>
+                Выбрать другой отдел
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   )
 }

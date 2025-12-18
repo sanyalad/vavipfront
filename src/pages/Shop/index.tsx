@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { productsApi } from '@/services/api'
 import { useCartStore } from '@/store/cartStore'
 import Button from '@/components/ui/Button'
+import { fallbackProducts } from '@/data/fallbackProducts'
 import styles from './Shop.module.css'
 
 export default function ShopPage() {
@@ -18,6 +19,23 @@ export default function ShopPage() {
     queryKey: ['products', { page, search, category }],
     queryFn: () => productsApi.getProducts({ page, search, category, per_page: 12 }),
   })
+
+  // Use fallback products if API returns empty or no data
+  const displayProducts = useMemo(() => {
+    if (productsData?.products && productsData.products.length > 0) {
+      return productsData
+    }
+    // Return fallback products formatted as API response
+    const shopProducts = fallbackProducts.filter(p => p.id >= 910000) // Only shop products (IDs >= 910000)
+    return {
+      products: shopProducts,
+      current_page: 1,
+      pages: 1,
+      has_next: false,
+      has_prev: false,
+      total: shopProducts.length,
+    }
+  }, [productsData])
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -34,6 +52,22 @@ export default function ShopPage() {
     addItem(product)
     openCart()
     lastAddedIdRef.current = product.id
+  }
+
+  // Try to load PNG from public/images/products/ first, then fallback to API image
+  const getImageUrl = (imageUrl: string | null | undefined, productSlug?: string) => {
+    if (!imageUrl) return null
+    // If it's already a full URL, use it
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl
+    }
+    // Try to find in public/images/products/ first
+    if (productSlug) {
+      // Priority: PNG -> API image
+      const publicPath = `/images/products/${productSlug}.png`
+      return publicPath
+    }
+    return imageUrl
   }
 
   return (
@@ -61,22 +95,34 @@ export default function ShopPage() {
                 />
                 <span className={styles.searchIcon} aria-hidden="true" />
               </div>
-
-              <select
-                className={styles.categorySelect}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">ВСЕ КАТЕГОРИИ</option>
-                {categories?.map((cat) => (
-                  <option key={cat.id} value={cat.slug}>
-                    {String(cat.name || '').toUpperCase()}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
         </header>
+
+        {/* Categories Grid */}
+        {categories && categories.length > 0 && (
+          <nav className={styles.categoriesNav} aria-label="Категории">
+            <div className={styles.categoriesGrid}>
+              <button
+                type="button"
+                className={`${styles.categoryTile} ${!category ? styles.categoryTileActive : ''}`}
+                onClick={() => setCategory('')}
+              >
+                ВСЕ ТОВАРЫ
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`${styles.categoryTile} ${category === cat.slug ? styles.categoryTileActive : ''}`}
+                  onClick={() => setCategory(cat.slug)}
+                >
+                  {String(cat.name || '').toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
 
         {/* Products Grid */}
         {isLoading ? (
@@ -84,7 +130,7 @@ export default function ShopPage() {
         ) : (
           <>
             <div className={styles.grid}>
-              {productsData?.products.map((product, index) => (
+              {displayProducts?.products.map((product, index) => (
                 <motion.div
                   key={product.id}
                   className={styles.card}
@@ -98,10 +144,17 @@ export default function ShopPage() {
                       <div className={styles.cardImage}>
                         {product.main_image ? (
                           <img
-                            src={product.main_image}
+                            src={getImageUrl(product.main_image, product.slug) || product.main_image}
                             alt={product.name}
                             loading="lazy"
                             decoding="async"
+                            onError={(e) => {
+                              // Fallback to API image if public PNG doesn't exist
+                              const target = e.target as HTMLImageElement
+                              if (target.src !== product.main_image) {
+                                target.src = product.main_image
+                              }
+                            }}
                           />
                         ) : (
                           <div className={styles.placeholder}>
@@ -145,22 +198,22 @@ export default function ShopPage() {
             </div>
 
             {/* Pagination */}
-            {productsData && productsData.pages > 1 && (
+            {displayProducts && displayProducts.pages > 1 && (
               <div className={styles.pagination}>
                 <Button
                   variant="outline"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={!productsData.has_prev}
+                  disabled={!displayProducts.has_prev}
                 >
                   Назад
                 </Button>
                 <span className={styles.pageInfo}>
-                  Страница {productsData.current_page} из {productsData.pages}
+                  Страница {displayProducts.current_page} из {displayProducts.pages}
                 </span>
                 <Button
                   variant="outline"
                   onClick={() => setPage((p) => p + 1)}
-                  disabled={!productsData.has_next}
+                  disabled={!displayProducts.has_next}
                 >
                   Вперед
                 </Button>

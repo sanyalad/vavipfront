@@ -44,6 +44,8 @@ function App() {
                 {/* Checkout is temporarily public until auth flow is fully wired with backend */}
                 <Route path="checkout" element={<CheckoutPage />} />
                 <Route path="contacts" element={<ContactsPage />} />
+                <Route path="services/bim" element={<ContactsPage />} />
+                <Route path="services/montazh" element={<ContactsPage />} />
                 <Route path="catalog/uzel-vvoda" element={<UzelCatalogPage />} />
                 <Route path="catalog/uzel-vvoda/:categorySlug" element={<UzelCatalogPage />} />
                 <Route path="login" element={<LoginPage />} />

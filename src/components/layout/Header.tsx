@@ -5,6 +5,7 @@ import { useCartStore } from '@/store/cartStore'
 import { useScroll } from '@/hooks/useScroll'
 import { uzelCategories } from '@/data/uzelCatalog'
 import { useUIStore } from '@/store/uiStore'
+import { detectPlatform } from '@/utils/platform'
 import styles from './Header.module.css'
 
 const menuItems = [
@@ -24,12 +25,28 @@ export default function Header() {
   const [isHidden, setIsHidden] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const lastScrollY = useRef(0)
   const hoverTimerRef = useRef<number | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
   const dropdownPanelRef = useRef<HTMLDivElement | null>(null)
   const scrollLockYRef = useRef(0)
   const body = typeof document !== 'undefined' ? document.body : null
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (!body) return
+    if (isMobileMenuOpen) {
+      body.classList.add('mobile-menu-scroll-lock')
+    } else {
+      body.classList.remove('mobile-menu-scroll-lock')
+    }
+    return () => {
+      if (body) {
+        body.classList.remove('mobile-menu-scroll-lock')
+      }
+    }
+  }, [isMobileMenuOpen, body])
 
   const cartCount = totalItems()
   const phoneText = '+7 931 248 70 13'
@@ -50,7 +67,7 @@ export default function Header() {
         document.execCommand('copy')
         document.body.removeChild(ta)
       }
-      addToast({ type: 'success', message: 'Номер скопирован' })
+      addToast({ type: 'success', message: 'Номер скопирован в буфер обмена' })
     } catch {
       // ignore clipboard failures (permissions, etc.)
     }
@@ -58,17 +75,39 @@ export default function Header() {
 
   const handlePhoneClick = useCallback(
     async (e: React.MouseEvent<HTMLAnchorElement>) => {
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      if (!isMobile) {
-        // Desktop: copy only (don't try to open tel:)
-        e.preventDefault()
-        await copyPhone()
+      // Detect platform using centralized utility
+      const platformInfo = detectPlatform()
+      
+      // On mobile (Android/iOS), try to open tel: link first
+      if (platformInfo.isMobile) {
+        // Let the default tel: link behavior happen (opens dialer)
+        // Also try to copy to clipboard as fallback
+        void copyPhone()
         return
       }
-      // Mobile: try to copy and let tel: happen (open dialer)
-      void copyPhone()
+      
+      // On desktop (including Mac), try to open tel: link
+      // If that fails (e.g., no phone app), copy to clipboard
+      e.preventDefault()
+      try {
+        // Try to open tel: link programmatically
+        const telLink = document.createElement('a')
+        telLink.href = phoneHref
+        telLink.style.display = 'none'
+        document.body.appendChild(telLink)
+        telLink.click()
+        document.body.removeChild(telLink)
+        // If we get here, the link was clicked but might not have opened
+        // Wait a bit to see if it worked, then copy as fallback
+        setTimeout(async () => {
+          await copyPhone()
+        }, 100)
+      } catch {
+        // If opening tel: fails, just copy
+        await copyPhone()
+      }
     },
-    [copyPhone],
+    [copyPhone, phoneHref],
   )
 
   // Hide header on scroll down
@@ -121,6 +160,62 @@ export default function Header() {
       document.documentElement.style.setProperty('--scroll-lock-top', '0px')
     }
   }, [activeMenu, body])
+
+  // Prevent page scroll when dropdown is open (block wheel events)
+  useEffect(() => {
+    if (!activeMenu) return
+    
+    const dropdownPanel = dropdownPanelRef.current
+    if (!dropdownPanel) return
+    
+    // Handle wheel events on the dropdown itself to allow scrolling
+    const handleDropdownWheel = (e: WheelEvent) => {
+      const canScroll = dropdownPanel.scrollHeight > dropdownPanel.clientHeight
+      const isAtTop = dropdownPanel.scrollTop <= 0
+      const isAtBottom = dropdownPanel.scrollTop >= dropdownPanel.scrollHeight - dropdownPanel.clientHeight - 1
+      
+      // If at boundaries and scrolling in that direction, prevent to avoid page scroll
+      if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      // If dropdown can scroll and we're not at boundaries, allow scrolling inside dropdown
+      if (canScroll) {
+        // Don't prevent default or stop propagation - allow native scrolling inside dropdown
+        // The document handler will check if event is inside dropdown and skip blocking
+        return
+      }
+      // If dropdown can't scroll, prevent page scroll
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    // Handle wheel events outside dropdown to block page scroll
+    const handleDocumentWheel = (e: WheelEvent) => {
+      const target = e.target as Node | null
+      
+      // If event is inside dropdown, let dropdown handler deal with it
+      if (dropdownPanel && target && dropdownPanel.contains(target)) {
+        return
+      }
+      
+      // Block page scroll when dropdown is open and event is not inside dropdown
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    // Add handler directly to dropdown to handle scrolling
+    dropdownPanel.addEventListener('wheel', handleDropdownWheel, { passive: false })
+    
+    // Add handler to document to block page scroll for events outside dropdown
+    document.addEventListener('wheel', handleDocumentWheel, { passive: false, capture: true })
+    
+    return () => {
+      dropdownPanel.removeEventListener('wheel', handleDropdownWheel)
+      document.removeEventListener('wheel', handleDocumentWheel, { capture: true })
+    }
+  }, [activeMenu])
 
   // Keep CSS var for dropdown positioning in sync with real header height
   useEffect(() => {
@@ -178,7 +273,7 @@ export default function Header() {
                 else window.location.assign('/')
               }}
             >
-              <img src="/images/logo.png" alt="Логотип Vavip" />
+              <img src="/images/logo.png" alt="Логотип Vavip" data-intro-anchor="logo" />
             </Link>
           </div>
 
@@ -246,7 +341,8 @@ export default function Header() {
                     if (navArea) {
                       navArea.classList.add(styles.navHovering)
                     }
-                    scheduleMenu(item.id === 'contacts' ? null : item.id)
+                    // Все пункты меню показывают дропдаун по hover
+                    scheduleMenu(item.id)
                   }}
                   onMouseLeave={(e) => {
                     const target = e.currentTarget
@@ -332,7 +428,69 @@ export default function Header() {
                 </div>
               )}
 
-              {activeMenu && activeMenu !== 'node' && (
+              {activeMenu === 'contacts' && (
+                <div className={styles.dropdownContent}>
+                  <div className={styles.dropdownHeader}>
+                    <div>
+                      <p className={styles.dropdownKicker}>Контакты</p>
+                      <h3 className={styles.dropdownTitle}>Свяжитесь с нами</h3>
+                      <p className={styles.dropdownLead}>
+                        Выберите отдел для связи: узел ввода, монтаж, проектирование или магазин.
+                      </p>
+                      <div className={styles.dropdownActions}>
+                        <Link to="/contacts" className={styles.dropdownPrimary}>
+                          Перейти к контактам
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.dropdownLayout}>
+                    <div className={styles.dropdownListBlock}>
+                      <p className={styles.dropdownListTitle}>Отделы</p>
+                      <ul className={styles.dropdownList}>
+                        <li>
+                          <Link to="/contacts?department=uzel" className={styles.dropdownListItem}>
+                            <span className={styles.dropdownDot} />
+                            <div className={styles.dropdownListTexts}>
+                              <span className={styles.dropdownListName}>Узел ввода</span>
+                              <span className={styles.dropdownListDesc}>Консультация и заказ</span>
+                            </div>
+                          </Link>
+                        </li>
+                        <li>
+                          <Link to="/contacts?department=montazh" className={styles.dropdownListItem}>
+                            <span className={styles.dropdownDot} />
+                            <div className={styles.dropdownListTexts}>
+                              <span className={styles.dropdownListName}>Монтаж</span>
+                              <span className={styles.dropdownListDesc}>Установка и обслуживание</span>
+                            </div>
+                          </Link>
+                        </li>
+                        <li>
+                          <Link to="/contacts?department=bim" className={styles.dropdownListItem}>
+                            <span className={styles.dropdownDot} />
+                            <div className={styles.dropdownListTexts}>
+                              <span className={styles.dropdownListName}>Проектирование BIM</span>
+                              <span className={styles.dropdownListDesc}>Разработка проектов</span>
+                            </div>
+                          </Link>
+                        </li>
+                        <li>
+                          <Link to="/contacts?department=shop" className={styles.dropdownListItem}>
+                            <span className={styles.dropdownDot} />
+                            <div className={styles.dropdownListTexts}>
+                              <span className={styles.dropdownListName}>Магазин</span>
+                              <span className={styles.dropdownListDesc}>Заказы и доставка</span>
+                            </div>
+                          </Link>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeMenu && activeMenu !== 'node' && activeMenu !== 'contacts' && (
                 <div className={styles.dropdownContent}>
                   <div className={styles.dropdownSimple}>
                     <p className={styles.dropdownKicker}>Раздел</p>
@@ -356,9 +514,33 @@ export default function Header() {
 
       {/* Mobile bar */}
       <div className={styles.mobileBar} role="banner" aria-label="Мобильная шапка сайта">
+        <div className={styles.mobileBarLeft}>
+          <button
+            className={`${styles.mobileBurgerBtn} ${isMobileMenuOpen ? styles.mobileBurgerBtnActive : ''}`}
+            aria-label={isMobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
+            aria-expanded={isMobileMenuOpen}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsMobileMenuOpen(prev => {
+                const newState = !prev
+                console.log('Burger clicked, menu state:', newState)
+                return newState
+              })
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
         <div className={styles.mobileBarCenter}>
-          <Link to="/" aria-label="Перейти на главную">
-            <img src="/images/logo.png" alt="Логотип Vavip" width="120" height="40" loading="lazy" />
+          <Link to="/" aria-label="Перейти на главную" onClick={() => setIsMobileMenuOpen(false)} data-intro-anchor="logo">
+            <img src="/images/logo.png" alt="Логотип Vavip" loading="lazy" data-intro-anchor="logo" />
           </Link>
         </div>
         <div className={styles.mobileBarRight}>
@@ -375,6 +557,53 @@ export default function Header() {
           </button>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className={`${styles.mobileMenuOverlay} ${styles.mobileMenuOverlayOpen}`}
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      
+      {/* Mobile Menu */}
+      <nav
+        className={`${styles.mobileMenu} ${isMobileMenuOpen ? styles.mobileMenuOpen : ''}`}
+        aria-label="Главное меню"
+      >
+        <div className={styles.mobileMenuContent}>
+          {menuItems.map((item) => (
+            <Link
+              key={item.id}
+              to={item.href}
+              className={styles.mobileMenuItem}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
+          {isAuthenticated ? (
+            <Link
+              to="/account"
+              className={styles.mobileMenuItem}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              ЛИЧНЫЙ КАБИНЕТ
+            </Link>
+          ) : (
+            <button
+              className={styles.mobileMenuItem}
+              onClick={() => {
+                setIsMobileMenuOpen(false)
+                openAuthDrawer('login')
+              }}
+            >
+              ВХОД / РЕГИСТРАЦИЯ
+            </button>
+          )}
+        </div>
+      </nav>
     </>
   )
 }

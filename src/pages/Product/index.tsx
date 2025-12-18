@@ -59,7 +59,32 @@ export default function ProductPage() {
   }
 
   const images = resolvedProduct?.images || []
-  const mainImage = images[selectedImage]?.url || resolvedProduct?.main_image
+  // Try to load PNG/GLB/STL from public/images/products/ first, then fallback to API image
+  const getImageUrl = (imageUrl: string | null | undefined) => {
+    // Try to find in public/images/products/ first
+    const productSlug = resolvedProduct?.slug
+    if (productSlug) {
+      // Priority: PNG from public folder
+      const publicPath = `/images/products/${productSlug}.png`
+      return publicPath
+    }
+    // If it's already a full URL, use it
+    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+      return imageUrl
+    }
+    return imageUrl || null
+  }
+  
+  // Get main image - prioritize public PNG, then API images
+  const mainImage = useMemo(() => {
+    const productSlug = resolvedProduct?.slug
+    if (productSlug) {
+      // Always try public PNG first
+      return `/images/products/${productSlug}.png`
+    }
+    // Fallback to API image
+    return images[selectedImage]?.url || resolvedProduct?.main_image || null
+  }, [resolvedProduct?.slug, images, selectedImage, resolvedProduct?.main_image])
   const skuLabel = useMemo(() => {
     if (!resolvedProduct?.sku) return null
     return String(resolvedProduct.sku).toUpperCase()
@@ -78,7 +103,39 @@ export default function ProductPage() {
           <div className={styles.galleryArea}>
             <div className={styles.galleryFrame}>
               {mainImage ? (
-                <img className={styles.galleryImage} src={mainImage} alt={resolvedProduct?.name || 'Товар'} />
+                <img 
+                  className={styles.galleryImage} 
+                  src={mainImage} 
+                  alt={resolvedProduct?.name || 'Товар'}
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    // Try alternative paths
+                    if (!target.dataset.triedAlt) {
+                      target.dataset.triedAlt = 'true'
+                      // Try with double extension (in case user added .png.png)
+                      const productSlug = resolvedProduct?.slug
+                      if (productSlug && target.src.includes('.png') && !target.src.includes('.png.png')) {
+                        target.src = `/images/products/${productSlug}.png.png`
+                        return
+                      }
+                    }
+                    // Fallback to API image if public PNG doesn't exist
+                    const apiImage = images[selectedImage]?.url || resolvedProduct?.main_image
+                    if (apiImage && !target.src.includes(apiImage)) {
+                      target.src = apiImage
+                    } else {
+                      target.style.display = 'none'
+                      const placeholder = target.parentElement?.querySelector(`.${styles.placeholder}`)
+                      if (!placeholder) {
+                        const placeholderDiv = document.createElement('div')
+                        placeholderDiv.className = styles.placeholder
+                        placeholderDiv.textContent = 'Нет изображения'
+                        target.parentElement?.appendChild(placeholderDiv)
+                      }
+                    }
+                  }}
+                />
               ) : (
                 <div className={styles.placeholder}>Нет изображения</div>
               )}

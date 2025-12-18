@@ -54,11 +54,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   // Scroll lock
   isScrollLocked: false,
   lockScroll: () => {
-    document.body.style.overflow = 'hidden'
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.style.overflow = 'hidden'
+    }
     set({ isScrollLocked: true })
   },
   unlockScroll: () => {
-    document.body.style.overflow = ''
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.style.overflow = ''
+    }
     set({ isScrollLocked: false })
   },
   

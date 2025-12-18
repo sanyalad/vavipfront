@@ -1,12 +1,12 @@
 .container {
   position: fixed;
-  bottom: var(--spacing-lg);
-  right: var(--spacing-lg);
+  bottom: clamp(var(--spacing-md), 2vw, var(--spacing-lg));
+  right: clamp(var(--spacing-md), 2vw, var(--spacing-lg));
   z-index: var(--z-tooltip);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  max-width: 400px;
+  max-width: clamp(320px, 90vw, 400px);
 }
 
 .toast {
@@ -79,7 +79,7 @@
 }
 
 /* Responsive */
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .container {
     left: var(--spacing-md);
     right: var(--spacing-md);
@@ -87,6 +87,15 @@
     max-width: none;
   }
 }
+
+@media (max-width: 480px) {
+  .container {
+    left: var(--spacing-sm);
+    right: var(--spacing-sm);
+    bottom: var(--spacing-sm);
+  }
+}
+
 
 
 

@@ -9,12 +9,13 @@
   overflow: hidden;
   will-change: transform, opacity;
   transform: translateZ(0);
+  /* PERF: Reduced from 0.55s to 0.35s for snappier animations */
   transition:
-    transform 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    opacity 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    visibility 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    box-shadow 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    filter 0.55s cubic-bezier(0.25, 0.85, 0.2, 1);
+    transform 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    opacity 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    visibility 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
   background: transparent;
   box-shadow: none;
   z-index: 1;
@@ -73,13 +74,13 @@
   background: #000;
   box-shadow: none;
   visibility: visible;
-  /* Плавный переход от next к active */
+  /* PERF: Reduced from 0.55s to 0.35s for snappier animations */
   transition:
-    transform 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    opacity 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    visibility 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    z-index 0.55s cubic-bezier(0.25, 0.85, 0.2, 1),
-    box-shadow 0.55s cubic-bezier(0.25, 0.85, 0.2, 1);
+    transform 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    opacity 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    visibility 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
+    filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
 }
 
 [data-direction="next"] .videoSection[data-state="next"] {
@@ -93,7 +94,8 @@
   filter: none;
   pointer-events: none;
   transition: none;
-  animation: deckSlideUp 0.45s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
+  animation: deckSlideUp 0.3s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
 }
 
 [data-direction="next"] .videoSection[data-state="prev"] {
@@ -133,6 +135,22 @@
   z-index: 4 !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   pointer-events: none;
+  transition: none;
+  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
+  animation: deckSlideDown 0.3s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+}
+
+@keyframes deckSlideDown {
+  from {
+    transform: translateY(-100%) scale(1);
+    opacity: 0.65;
+    box-shadow: 0 20px 38px rgba(0, 0, 0, 0.4);
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
 }
 
 /* При пролистывании вверх текущая активная уходит вниз */
@@ -143,6 +161,9 @@
   z-index: 1 !important;
   pointer-events: none;
   box-shadow: none;
+  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
+  transition: transform 0.3s cubic-bezier(0.23, 0.9, 0.15, 1),
+              opacity 0.3s cubic-bezier(0.23, 0.9, 0.15, 1);
 }
 
 /* Убеждаемся что секции в idle не показываются даже при direction */
@@ -178,7 +199,8 @@
   display: block;
   /* Без затемнения для чистой анимации */
   filter: brightness(1);
-  transition: filter 0.55s cubic-bezier(0.25, 0.85, 0.2, 1);
+  /* PERF: Reduced from 0.55s to 0.35s */
+  transition: filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
   opacity: 1;
 }
 
@@ -227,10 +249,11 @@
   white-space: nowrap;
   opacity: 0;
   filter: blur(10px);
+  /* PERF: Reduced from 0.55s to 0.35s for faster caption appearance */
   transition:
-    opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    filter 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .videoSection.active .videoCaption,
@@ -238,8 +261,8 @@
   opacity: 1;
   transform: translate(-50%, 0);
   filter: blur(0);
-  /* show text after the section "lands" (no glued feel during motion) */
-  transition-delay: 0.22s;
+  /* PERF: reduced from 0.22s to 0.1s for faster caption appearance */
+  transition-delay: 0.1s;
 }
 
 .videoSection[data-state="prev"] .videoCaption {
@@ -251,6 +274,13 @@
 .videoSection[data-state="next"] .videoCaption {
   opacity: 0;
   filter: blur(8px);
+}
+
+/* CRITICAL: Active section should show caption even if it's also "next" during animation */
+.videoSection[data-state="active"] .videoCaption {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) !important;
+  filter: blur(0) !important;
 }
 
 /* During deck movement we keep NON-active captions hidden; active caption can stay visible */
@@ -268,7 +298,8 @@
   opacity: 1 !important;
   transform: translate(-50%, 0) !important;
   filter: blur(0) !important;
-  transition-delay: 0.15s;
+  /* PERF: no delay during gesture for instant caption visibility */
+  transition-delay: 0s;
 }
 
 /* ===== Video poster fallback ===== */
@@ -318,7 +349,7 @@
   }
 }
 
-/* ===== Safari fixes ===== */
+/* ===== Safari fixes and macOS performance optimizations ===== */
 @supports (-webkit-touch-callout: none) {
   .videoSection {
     -webkit-transform: translateZ(0);
@@ -326,6 +357,27 @@
     height: -webkit-fill-available;
     min-height: 100vh;
     min-height: 100svh;
+    /* Optimize for Safari: use transform3d for better GPU acceleration */
+    transform: translate3d(0, 0, 0);
+    /* Reduce will-change scope for better performance */
+    will-change: transform, opacity;
+    /* Improve compositing on Safari */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000px;
+  }
+
+  /* Disable will-change when not actively animating to save resources */
+  .videoSection[data-state="active"]:not([data-gesture="true"]) {
+    will-change: auto;
+  }
+
+  /* Optimize video elements for Safari */
+  .videoSection video {
+    -webkit-transform: translateZ(0);
+    transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 }
 

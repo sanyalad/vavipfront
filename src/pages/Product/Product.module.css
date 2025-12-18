@@ -38,32 +38,56 @@
   grid-template-areas: "gallery gallery details";
   grid-template-columns: 1fr 1fr minmax(520px, 1fr);
   height: calc(100svh - var(--header-h));
-  overflow: hidden;
+  min-height: calc(100svh - var(--header-h));
+  overflow: visible;
+}
+
+/* Tablet layout */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .pdpLayout {
+    grid-template-columns: 1fr minmax(400px, 1fr);
+    grid-template-areas: "gallery details";
+  }
 }
 
 .galleryArea {
   grid-area: gallery;
-  padding: 24px 0 24px 24px;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 16px;
+  padding: clamp(18px, 2vw, 24px) 0 clamp(18px, 2vw, 24px) clamp(18px, 2vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 1.5vw, 16px);
+  min-height: 0;
+  overflow: visible;
+  height: 100%;
+  align-items: stretch;
 }
 
 .galleryFrame {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  height: 100%;
 }
 
 .galleryImage {
-  width: 100%;
-  height: 100%;
+  max-width: calc(100% - clamp(40px, 5vw, 56px));
+  max-height: calc(100% - clamp(40px, 5vw, 56px));
+  width: auto;
+  height: auto;
   object-fit: contain;
-  padding: 28px;
+  object-position: center;
+  padding: clamp(20px, 2.5vw, 28px);
+  display: block;
+  box-sizing: content-box;
 }
+
 
 .placeholder {
   width: 100%;
@@ -79,13 +103,14 @@
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 2px;
+  flex-shrink: 0;
 }
 
 .thumbnail {
   flex-shrink: 0;
-  width: 72px;
-  height: 72px;
-  border-radius: 14px;
+  width: clamp(60px, 7vw, 72px);
+  height: clamp(60px, 7vw, 72px);
+  border-radius: clamp(12px, 1.5vw, 14px);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(255, 255, 255, 0.03);
@@ -115,7 +140,7 @@
 }
 
 .detailsInner {
-  padding: 32px 32px 36px;
+  padding: clamp(24px, 3vw, 32px) clamp(24px, 3vw, 32px) clamp(28px, 3.5vw, 36px);
   max-width: 640px;
 }
 
@@ -142,7 +167,7 @@
 }
 
 .title {
-  font-size: 22px;
+  font-size: clamp(18px, 2.2vw, 22px);
   font-weight: 500;
   letter-spacing: 0.02em;
   line-height: 1.25;
@@ -157,13 +182,13 @@
 }
 
 .currentPrice {
-  font-size: 22px;
+  font-size: clamp(18px, 2.2vw, 22px);
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
 .oldPrice {
-  font-size: 14px;
+  font-size: clamp(12px, 1.4vw, 14px);
   color: rgba(255, 255, 255, 0.35);
   text-decoration: line-through;
 }
@@ -193,11 +218,11 @@
 .buyOneClick {
   flex: 0 0 auto;
   width: 0%;
-  height: 52px;
+  height: clamp(48px, 5vw, 52px);
   white-space: normal;
   text-align: center;
   line-height: 1.05;
-  font-size: 12px;
+  font-size: clamp(11px, 1.2vw, 12px);
   letter-spacing: 0.04em;
   opacity: 0;
   pointer-events: none;
@@ -265,16 +290,16 @@
   background-color: rgba(255, 255, 255, 0.03);
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  height: 52px;
+  height: clamp(48px, 5vw, 52px);
 }
 
 .qty button {
-  width: 48px;
-  height: 52px;
+  width: clamp(44px, 4.8vw, 48px);
+  height: clamp(48px, 5vw, 52px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: clamp(18px, 2.2vw, 22px);
   color: rgba(255, 255, 255, 0.7);
   transition: color var(--transition-fast), opacity var(--transition-fast);
 }
@@ -352,14 +377,23 @@
     display: block;
     height: auto;
     overflow: visible;
+    grid-template-areas: "gallery" "details";
+    grid-template-columns: 1fr;
   }
 
   .galleryArea {
-    padding: 18px 15px 8px;
+    padding: clamp(16px, 2vw, 18px) clamp(12px, 1.5vw, 15px) clamp(6px, 1vw, 8px);
   }
 
   .galleryFrame {
-    border-radius: 20px;
+    border-radius: clamp(16px, 2vw, 20px);
+    overflow: visible;
+  }
+
+  .galleryImage {
+    max-width: 100%;
+    max-height: 100%;
+    padding: clamp(16px, 2vw, 20px);
   }
 
   .detailsArea {
@@ -368,11 +402,31 @@
   }
 
   .detailsInner {
-    padding: 18px 15px 28px;
+    padding: clamp(16px, 2vw, 18px) clamp(12px, 1.5vw, 15px) clamp(24px, 3vw, 28px);
   }
 
   .actionsRow {
     flex-direction: column;
+    gap: clamp(10px, 1.2vw, 12px);
+  }
+
+  .thumbnails {
+    gap: clamp(8px, 1vw, 10px);
+  }
+}
+
+@media (max-width: 480px) {
+  .galleryArea {
+    padding: clamp(12px, 1.5vw, 16px) clamp(10px, 1.2vw, 12px) clamp(4px, 0.8vw, 6px);
+  }
+
+  .detailsInner {
+    padding: clamp(14px, 1.8vw, 16px) clamp(10px, 1.2vw, 12px) clamp(20px, 2.5vw, 24px);
+  }
+
+  .thumbnail {
+    width: clamp(50px, 6vw, 60px);
+    height: clamp(50px, 6vw, 60px);
   }
 }
 

@@ -62,6 +62,15 @@
   --spacing-2xl: 3rem;
   --spacing-3xl: 4rem;
 
+  /* Responsive Spacing (fluid scaling) */
+  --spacing-responsive-xs: clamp(0.25rem, 0.2rem + 0.2vw, 0.375rem);
+  --spacing-responsive-sm: clamp(0.5rem, 0.4rem + 0.3vw, 0.75rem);
+  --spacing-responsive-md: clamp(0.75rem, 0.625rem + 0.5vw, 1rem);
+  --spacing-responsive-lg: clamp(1rem, 0.875rem + 0.75vw, 1.5rem);
+  --spacing-responsive-xl: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  --spacing-responsive-2xl: clamp(2rem, 1.75rem + 1.5vw, 3rem);
+  --spacing-responsive-3xl: clamp(3rem, 2.5rem + 2vw, 4rem);
+
   /* Typography */
   --font-family: 'Gotham', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   --font-size-xs: 0.75rem;
@@ -74,12 +83,35 @@
   --font-size-4xl: 2.25rem;
   --font-size-5xl: 3rem;
 
+  /* Responsive Typography (fluid scaling) */
+  --font-size-responsive-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+  --font-size-responsive-sm: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem);
+  --font-size-responsive-base: clamp(0.875rem, 0.75rem + 0.5vw, 1rem);
+  --font-size-responsive-lg: clamp(1rem, 0.875rem + 0.5vw, 1.125rem);
+  --font-size-responsive-xl: clamp(1.125rem, 1rem + 0.5vw, 1.25rem);
+  --font-size-responsive-2xl: clamp(1.25rem, 1.125rem + 0.75vw, 1.5rem);
+  --font-size-responsive-3xl: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+  --font-size-responsive-4xl: clamp(1.875rem, 1.5rem + 1.5vw, 2.25rem);
+  --font-size-responsive-5xl: clamp(2.25rem, 1.875rem + 2vw, 3rem);
+
   /* Border radius */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
+
+  /* Breakpoints */
+  --breakpoint-xs: 480px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* macOS-specific spacing (will be overridden for macOS) */
+  --macos-min-touch-target: 44px;
+  --macos-interactive-spacing: 1.25rem;
 }
 
 /* ===== Reset ===== */
@@ -101,6 +133,31 @@ html, body {
   scrollbar-color: #1f2228 transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* macOS-specific font optimizations */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    -webkit-font-smoothing: subpixel-antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern" 1;
+    font-kerning: normal;
+  }
+
+  /* Retina display optimizations */
+  @media (-webkit-min-device-pixel-ratio: 2),
+         (min-resolution: 192dpi) {
+    html, body {
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Slightly adjust letter-spacing for better readability on Retina */
+    body {
+      letter-spacing: 0.01em;
+    }
+  }
 }
 
 html {
@@ -126,10 +183,45 @@ body::-webkit-scrollbar-thumb {
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: content-box;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 
 body::-webkit-scrollbar-thumb:hover {
   background-color: #9ca3af;
+}
+
+/* macOS-specific scrollbar styles */
+@supports (-webkit-touch-callout: none) {
+  body::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  body::-webkit-scrollbar-thumb {
+    background-color: rgba(155, 155, 155, 0.5);
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+  }
+
+  body::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(155, 155, 155, 0.7);
+  }
+
+  body::-webkit-scrollbar-thumb:active {
+    background-color: rgba(155, 155, 155, 0.9);
+  }
+
+  /* Auto-hide scrollbar when not scrolling (macOS behavior) */
+  body::-webkit-scrollbar-thumb {
+    opacity: 0;
+  }
+
+  body:hover::-webkit-scrollbar-thumb,
+  body:focus-within::-webkit-scrollbar-thumb {
+    opacity: 1;
+  }
 }
 
 /* ===== Focus states ===== */
@@ -162,6 +254,41 @@ a, button, [role="button"], .btn {
     box-shadow var(--transition-fast);
 }
 
+/* macOS-specific spacing and touch target improvements */
+@supports (-webkit-touch-callout: none) {
+  /* Ensure minimum touch target size for macOS (44x44px per HIG) */
+  button,
+  a[role="button"],
+  [role="button"],
+  .btn,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    min-height: var(--macos-min-touch-target);
+    min-width: var(--macos-min-touch-target);
+    padding: 0.75rem 1.25rem;
+  }
+
+  /* Increase spacing between interactive elements */
+  nav a + a,
+  .menuItemButton + .menuItemButton,
+  button + button,
+  .btn + .btn {
+    margin-left: var(--macos-interactive-spacing);
+  }
+
+  /* Better spacing for icon buttons */
+  .iconBtn,
+  .iconLink {
+    min-width: var(--macos-min-touch-target);
+    min-height: var(--macos-min-touch-target);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+}
+
 /* Hover glow effect for icons */
 .icon-btn:hover svg {
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
@@ -180,6 +307,54 @@ a, button, [role="button"], .btn {
 header {
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+/* macOS-specific visual effects optimizations */
+@supports (-webkit-touch-callout: none) {
+  /* Improved backdrop-filter for macOS Safari */
+  [class*="backdrop"],
+  [class*="Backdrop"],
+  .backdrop,
+  .mobileStrip,
+  .mobileBar {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+
+  /* Smooth transitions for hover effects */
+  a, button, [role="button"], .btn {
+    transition: 
+      color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Optimized shadows for macOS (lighter, more subtle) */
+  .card,
+  .modal,
+  .dropdown {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12),
+                0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Optimized blur effects - use transform3d for better performance */
+  [class*="blur"],
+  [class*="Blur"] {
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+  }
+
+  /* Reduce motion blur on hover for better performance */
+  @media (prefers-reduced-motion: no-preference) {
+    a:hover,
+    button:hover,
+    [role="button"]:hover {
+      transform: translateY(-1px);
+    }
+  }
 }
 
 /* ===== Links ===== */
@@ -268,6 +443,22 @@ body.intro-revealed main {
     filter 0.6s ease 0.18s;
 }
 
+/* Ensure root is visible after intro */
+html.intro-static-done #root {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+}
+
+/* Hide intro static if it's still in DOM */
+#intro-static.intro-static--out {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
 /* ===== Footer drawer lock (Home page overlay) ===== */
 body.footer-drawer-lock {
   /* Intentionally kept non-layout-impacting.
@@ -288,6 +479,14 @@ body.dropdown-scroll-lock {
   right: 0;
   width: 100%;
   overflow: hidden !important;
+}
+
+/* Scroll lock для мобильного меню */
+body.mobile-menu-scroll-lock {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 /* With scrollbar-gutter: stable, we don't need header-specific compensation. */
@@ -312,5 +511,150 @@ body.dropdown-scroll-lock {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 var(--spacing-lg);
+  padding: 0 clamp(var(--spacing-md), 2vw, var(--spacing-xl));
+}
+
+/* Container size variants */
+.container-sm {
+  max-width: 640px;
+}
+
+.container-md {
+  max-width: 768px;
+}
+
+.container-lg {
+  max-width: 1024px;
+}
+
+.container-xl {
+  max-width: 1400px;
+}
+
+.container-2xl {
+  max-width: 1536px;
+}
+
+/* Responsive container padding */
+@media (max-width: 640px) {
+  .container {
+    padding: 0 var(--spacing-md);
+  }
+}
+
+@media (min-width: 1536px) {
+  .container {
+    padding: 0 var(--spacing-2xl);
+  }
+}
+
+/* ===== Auto-scaling for very large screens (> 1920px) ===== */
+@media (min-width: 1920px) {
+  html {
+    font-size: clamp(16px, 0.833vw, 18px);
+  }
+
+  .container {
+    max-width: min(1400px, 90vw);
+  }
+}
+
+@media (min-width: 2560px) {
+  html {
+    font-size: clamp(16px, 0.625vw, 20px);
+  }
+
+  .container {
+    max-width: min(1600px, 85vw);
+  }
+}
+
+/* ===== Auto-scaling for very small screens (< 360px) ===== */
+@media (max-width: 360px) {
+  html {
+    font-size: clamp(14px, 4vw, 16px);
+  }
+
+  .container {
+    padding: 0 var(--spacing-sm);
+  }
+
+  /* Ensure minimum touch targets on very small screens */
+  button,
+  a[role="button"],
+  [role="button"],
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
+@media (max-width: 320px) {
+  html {
+    font-size: clamp(13px, 4.5vw, 15px);
+  }
+
+  .container {
+    padding: 0 var(--spacing-xs);
+  }
+}
+
+/* ===== macOS Media Queries ===== */
+
+/* Retina display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2),
+       (min-resolution: 192dpi),
+       (min-resolution: 2dppx) {
+  /* Sharper borders and shadows on Retina */
+  .card,
+  .modal,
+  .dropdown,
+  button,
+  input,
+  textarea {
+    border-width: 0.5px;
+  }
+
+  /* Optimize images for Retina */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* High DPI displays (Retina and above) */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  /* Enhanced font rendering for Retina */
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Safari-specific media queries */
+@supports (-webkit-touch-callout: none) {
+  /* macOS desktop Safari optimizations */
+  @media (min-width: 768px) {
+    /* Improve performance on larger screens */
+    .videoSection,
+    .intro-loader {
+      will-change: transform, opacity;
+    }
+  }
+
+  /* Dark mode support for macOS */
+  @media (prefers-color-scheme: dark) {
+    /* Ensure proper contrast in dark mode */
+    body {
+      color-scheme: dark;
+    }
+  }
+
+  /* Light mode support for macOS */
+  @media (prefers-color-scheme: light) {
+    body {
+      color-scheme: light;
+    }
+  }
 }

@@ -198,7 +198,29 @@ export default function UzelCatalogPage() {
                         VAVIP
                       </div>
                       <div className={styles.borkCardMedia} aria-hidden="true">
-                        <svg className={styles.nodeSvg} viewBox="0 0 120 120" role="presentation">
+                        <img
+                          src={`/images/products/${product.slug}.png`}
+                          alt={product.title}
+                          className={styles.borkCardImage}
+                          loading="lazy"
+                          onError={(e) => {
+                            // Fallback to SVG if image doesn't exist
+                            const target = e.target as HTMLImageElement
+                            // Try alternative paths
+                            if (!target.dataset.triedAlt) {
+                              target.dataset.triedAlt = 'true'
+                              // Try with double extension (in case user added .png.png)
+                              target.src = `/images/products/${product.slug}.png.png`
+                              return
+                            }
+                            target.style.display = 'none'
+                            const svg = target.nextElementSibling as SVGSVGElement
+                            if (svg) {
+                              svg.style.display = 'block'
+                            }
+                          }}
+                        />
+                        <svg className={styles.nodeSvg} viewBox="0 0 120 120" role="presentation" style={{ display: 'none' }}>
                           <path d="M25 60h70" />
                           <path d="M60 25v70" />
                           <path d="M38 48h44" />
