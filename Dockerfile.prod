@@ -3,10 +3,10 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies with cache mount for faster rebuilds
+# Install dependencies
+# Layer is cached unless package*.json changes
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --prefer-offline --no-audit
+RUN npm ci --prefer-offline --no-audit
 
 # Copy source and build (separated from npm install for better caching)
 COPY . .

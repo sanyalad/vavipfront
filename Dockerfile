@@ -3,10 +3,10 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dependencies with cache mount (faster rebuilds)
+# Install dependencies
+# Layer is cached unless package*.json changes
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
+RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
 
 # Copy source (this layer invalidates only when code changes)
 COPY . .
