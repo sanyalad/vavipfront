@@ -54,7 +54,7 @@ const globalContacts: Partial<Record<Department, { phone: string; email: string 
 type Step = 'department' | 'country' | 'city' | 'contacts'
 
 export default function ContactsPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, _setSearchParams] = useSearchParams()
   const { addToast } = useUIStore()
   const [step, setStep] = useState<Step>('department')
   const [department, setDepartment] = useState<Department | null>(null)

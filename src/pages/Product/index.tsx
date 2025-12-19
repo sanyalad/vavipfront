@@ -59,21 +59,6 @@ export default function ProductPage() {
   }
 
   const images = resolvedProduct?.images || []
-  // Try to load PNG/GLB/STL from public/images/products/ first, then fallback to API image
-  const getImageUrl = (imageUrl: string | null | undefined) => {
-    // Try to find in public/images/products/ first
-    const productSlug = resolvedProduct?.slug
-    if (productSlug) {
-      // Priority: PNG from public folder
-      const publicPath = `/images/products/${productSlug}.png`
-      return publicPath
-    }
-    // If it's already a full URL, use it
-    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
-      return imageUrl
-    }
-    return imageUrl || null
-  }
   
   // Get main image - prioritize public PNG, then API images
   const mainImage = useMemo(() => {

@@ -108,7 +108,7 @@ export function detectPlatform(): PlatformInfo {
   const hasTrackpad = isMac && !isIOS && (isSafari || isChrome)
 
   // Retina display detection
-  const isRetina = window.devicePixelRatio && window.devicePixelRatio >= 2
+  const isRetina = Boolean(window.devicePixelRatio && window.devicePixelRatio >= 2)
 
   cachedPlatformInfo = {
     platform: detectedPlatform,
@@ -125,7 +125,7 @@ export function detectPlatform(): PlatformInfo {
     isRetina,
   }
 
-  return cachedPlatformInfo
+  return cachedPlatformInfo as PlatformInfo
 }
 
 /**

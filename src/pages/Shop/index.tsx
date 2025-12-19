@@ -144,14 +144,14 @@ export default function ShopPage() {
                       <div className={styles.cardImage}>
                         {product.main_image ? (
                           <img
-                            src={getImageUrl(product.main_image, product.slug) || product.main_image}
+                            src={getImageUrl(product.main_image, product.slug) || product.main_image || ''}
                             alt={product.name}
                             loading="lazy"
                             decoding="async"
                             onError={(e) => {
                               // Fallback to API image if public PNG doesn't exist
                               const target = e.target as HTMLImageElement
-                              if (target.src !== product.main_image) {
+                              if (product.main_image && target.src !== product.main_image) {
                                 target.src = product.main_image
                               }
                             }}
