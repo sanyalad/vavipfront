@@ -40,7 +40,6 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const [isVideoReady, setIsVideoReady] = useState(false)
   const nextVideoRef = useRef<{ webmLink: HTMLLinkElement; mp4Link: HTMLLinkElement } | null>(null)
   const primedRef = useRef(false)
-  const _lastVideoLogTsRef = useRef(0)
   const isActiveRef = useRef(false)
   const lastPlayedActiveIndexRef = useRef<number | null>(null)
   const lastPlayedTimestampRef = useRef<number>(0)
