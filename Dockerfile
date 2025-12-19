@@ -3,11 +3,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies with cache mount (faster rebuilds)
 COPY package*.json ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
 
-# Copy source
+# Copy source (this layer invalidates only when code changes)
 COPY . .
 
 # Expose Vite dev server port
