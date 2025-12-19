@@ -24,4 +24,11 @@ test-results
 playwright-report
 .Dockerfile
 docker-compose*.yml
+backend/
+migrations/
+*.db
+images/
+videos/
+*.mp4
+*.webm
 
