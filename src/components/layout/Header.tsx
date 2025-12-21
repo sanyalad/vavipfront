@@ -25,6 +25,7 @@ export default function Header() {
   const [isHidden, setIsHidden] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const lastScrollY = useRef(0)
   const hoverTimerRef = useRef<number | null>(null)
@@ -355,10 +356,15 @@ export default function Header() {
         >
           <nav className={styles.headerBottom} role="navigation" aria-label="Главное меню">
             {menuItems.map((item) => (
-              <div key={item.id} className={styles.menuItemWrapper}>
-                <Link 
+              <div
+                key={item.id}
+                className={styles.menuItemWrapper}
+                onMouseEnter={() => setHoveredMenuItem(item.id)}
+                onMouseLeave={() => setHoveredMenuItem(null)}
+              >
+                <Link
                   to={item.href}
-                  className={`${styles.menuItemButton} ${activeMenu === item.id ? styles.active : ''}`}
+                  className={`${styles.menuItemButton} ${activeMenu === item.id ? styles.active : ''} ${hoveredMenuItem === item.id ? styles.menuItemHovered : ''}`}
                   onMouseEnter={(e) => {
                     const target = e.currentTarget
                     const navArea = target.closest(`.${styles.navArea}`) as HTMLElement | null
@@ -367,6 +373,7 @@ export default function Header() {
                     }
                     // Все пункты меню показывают дропдаун по hover
                     scheduleMenu(item.id)
+                    setHoveredMenuItem(item.id)
                   }}
                   onMouseLeave={(e) => {
                     const target = e.currentTarget
@@ -375,6 +382,7 @@ export default function Header() {
                       navArea.classList.remove(styles.navHovering)
                     }
                     clearHoverTimer()
+                    setHoveredMenuItem(null)
                   }}
                   onClick={() => {
                     closeMenu()
