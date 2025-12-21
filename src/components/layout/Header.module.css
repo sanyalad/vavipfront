@@ -232,10 +232,10 @@
   position: fixed;
   left: 0;
   right: 0;
-  top: var(--header-h, 0px);
+  top: calc(var(--header-h, 0px) - 1px);
   /* 80% of viewport height for the dropdown area; leave 20% gap to the bottom */
-  height: calc(80vh - var(--header-h, 0px));
-  max-height: calc(100vh - var(--header-h, 0px));
+  height: calc(80vh - var(--header-h, 0px) + 1px);
+  max-height: calc(100vh - var(--header-h, 0px) + 1px);
   opacity: 0;
   pointer-events: none;
   transform: translateY(0);
