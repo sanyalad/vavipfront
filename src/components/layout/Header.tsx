@@ -29,8 +29,11 @@ export default function Header() {
   const lastScrollY = useRef(0)
   const hoverTimerRef = useRef<number | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
+  const headerTopRef = useRef<HTMLDivElement | null>(null)
   const dropdownPanelRef = useRef<HTMLDivElement | null>(null)
   const scrollLockYRef = useRef(0)
+  const lastKnownYPos = useRef<number | null>(null);
+  const isMouseInHeaderTopRef = useRef(false);
   const body = typeof document !== 'undefined' ? document.body : null
 
   // Lock body scroll when mobile menu is open
@@ -237,15 +240,29 @@ export default function Header() {
 
   return (
     <>
-      <header 
+      <header
         id="main-header"
         className={headerClasses}
         ref={(el) => { headerRef.current = el }}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseLeave={() => {
+          setIsHovered(false);
+        }}
       >
         {/* Top row */}
-        <div className={styles.headerTop}>
+        <div
+          className={styles.headerTop}
+          ref={(el) => { headerTopRef.current = el; }}
+          onMouseEnter={() => {
+            isMouseInHeaderTopRef.current = true;
+            if (activeMenu) {
+              closeMenu();
+            }
+          }}
+          onMouseLeave={() => {
+            isMouseInHeaderTopRef.current = false;
+          }}
+        >
           <div className={styles.headerLeft}>
             {/* Location button */}
             <button className={styles.iconBtn} type="button" aria-label="Выбрать локацию">
@@ -323,11 +340,18 @@ export default function Header() {
         <div className={styles.centerDivider} />
 
         {/* Navigation + dropdowns */}
-        <div 
+        <div
           className={styles.navArea}
           // Important: do NOT close on navArea mouseleave. The dropdown is fixed-position and
           // sits outside navArea's box, so closing here makes it "impossible to catch".
-          onMouseEnter={() => clearHoverTimer()}
+          onMouseEnter={() => {
+            clearHoverTimer();
+            // Check if mouse is entering from the dropdown area (from below)
+            if (activeMenu) {
+              // Reset the flag as user is interacting with the header area
+              isMouseInHeaderTopRef.current = false;
+            }
+          }}
         >
           <nav className={styles.headerBottom} role="navigation" aria-label="Главное меню">
             {menuItems.map((item) => (
@@ -368,19 +392,30 @@ export default function Header() {
             }}
             className={`${styles.dropdownPanel} ${activeMenu ? styles.dropdownVisible : ''}`}
             // Keep dropdown open while cursor is inside the panel.
-            onMouseEnter={() => clearHoverTimer()}
-            // Close only when cursor goes BELOW the dropdown bottom edge.
+            onMouseEnter={() => {
+              clearHoverTimer();
+            }}
+            // Close when cursor leaves the dropdown area only from the bottom or above the header.
             onMouseLeave={(e) => {
               const panel = dropdownPanelRef.current
-              if (!panel) {
+              const headerTopEl = headerTopRef.current
+              if (!panel || !headerTopEl) {
                 closeMenu()
                 return
               }
-              const rect = panel.getBoundingClientRect()
-              // If user moves back up into the header/menu, do not close.
-              if (e.clientY < rect.top) return
-              // Close only when leaving through the bottom boundary.
-              if (e.clientY >= rect.bottom - 2) {
+              
+              const panelRect = panel.getBoundingClientRect()
+              const headerTopRect = headerTopEl.getBoundingClientRect()
+              
+              // Store the last Y position to determine movement direction
+              lastKnownYPos.current = e.clientY;
+              
+              // Close if cursor goes below the dropdown
+              if (e.clientY >= panelRect.bottom - 2) {
+                closeMenu()
+              }
+              // Close if cursor goes above the top row of the header (above the divider line)
+              else if (e.clientY < headerTopRect.top) {
                 closeMenu()
               }
             }}
