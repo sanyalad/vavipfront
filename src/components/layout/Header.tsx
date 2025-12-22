@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useCartStore } from '@/store/cartStore'
 import { useScroll } from '@/hooks/useScroll'
@@ -22,11 +22,12 @@ export default function Header() {
   const { totalItems } = useCartStore()
   const { openAuthDrawer, addToast, openSearch } = useUIStore()
   const { direction, scrollY } = useScroll()
-  const [isHidden, setIsHidden] = useState(false)
+ const [isHidden, setIsHidden] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const location = useLocation();
   const lastScrollY = useRef(0)
   const hoverTimerRef = useRef<number | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
@@ -233,10 +234,36 @@ export default function Header() {
     return () => window.removeEventListener('resize', updateHeaderHeight)
   }, [])
 
+  const isReducedHeaderPage = location.pathname === '/cart' || location.pathname === '/checkout';
+  
+  // Update CSS variable for header height based on reduced header pages state
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      const headerEl = headerRef.current;
+      if (headerEl) {
+        // When on cart or checkout page, only calculate the height of the visible part (headerTop)
+        let h = 0;
+        if (isReducedHeaderPage) {
+          // Calculate only the height of the top row when on cart/checkout page
+          const headerTopEl = headerEl.querySelector(`.${styles.headerTop}`) as HTMLElement | null;
+          h = headerTopEl ? headerTopEl.offsetHeight + 8 : 0; // +8 for margin-bottom
+        } else {
+          h = headerEl.offsetHeight;
+        }
+        document.documentElement.style.setProperty('--header-h', h + 'px');
+      }
+    };
+    
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, [isReducedHeaderPage]);
+  
   const headerClasses = [
     styles.header,
     isHidden && styles.headerHidden,
     (isHovered || activeMenu) && styles.headerSolid,
+    isReducedHeaderPage && styles.headerCartPage,
   ].filter(Boolean).join(' ')
 
   return (

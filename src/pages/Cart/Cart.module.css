@@ -1,6 +1,6 @@
 .cart {
   min-height: 100vh;
-  padding: calc(var(--header-h) + 26px) 0 var(--spacing-3xl);
+ padding: calc(var(--header-h) + 26px) 0 var(--spacing-3xl);
   background: var(--color-bg);
 }
 

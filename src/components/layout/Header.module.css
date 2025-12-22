@@ -27,10 +27,33 @@
   pointer-events: none;
 }
 
+/* Cart page specific header styles */
+.headerCartPage .navArea {
+  display: none;
+}
+
+.headerCartPage .centerDivider {
+  display: none;
+}
+
+/* Adjust header height when on cart page - only the top part remains */
+.headerCartPage {
+  padding-bottom: 8px; /* Reduce padding since lower part is hidden */
+}
+
 .header:hover,
 .headerSolid {
-  background-color: var(--color-bg-secondary);
+ background-color: var(--color-bg-secondary);
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+
+/* Cart page specific header styles */
+.headerCartPage .navArea {
+  display: none;
+}
+
+.headerCartPage .centerDivider {
+  display: none;
 }
 
 /* ===== Divider ===== */
