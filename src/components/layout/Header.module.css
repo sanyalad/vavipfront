@@ -20,6 +20,72 @@
   will-change: transform;
 }
 
+/* Contacts overlay mode: keep header/brand semi-transparent (like Home) even when hovered.
+   We still allow .headerSolid when dropdown is open. */
+.headerOverlay {
+  background-color: rgba(18, 20, 22, 0.02);
+  box-shadow: none;
+}
+
+/* Make the logo slightly softer in overlay mode (keeps the “home-like” feel). */
+.headerOverlay .headerCenter img {
+  opacity: 0.92;
+}
+
+/* ===== Contacts page: reveal zone ===== */
+/* Invisible area at the top of the viewport that reveals the header on hover.
+   Needed because .headerHidden sets pointer-events:none, so the user can't hover the header itself. */
+.headerRevealZone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: calc(var(--z-header) + 1);
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* Contacts: nav hidden by default (only show top row + logo). */
+.headerOverlay .centerDivider,
+.headerOverlay .navArea {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.headerOverlay .centerDivider {
+  height: 0;
+  margin: 0;
+}
+
+.headerOverlay .navArea {
+  max-height: 0;
+  overflow: hidden;
+  transition:
+    opacity var(--transition-medium),
+    transform var(--transition-medium),
+    max-height var(--transition-medium);
+}
+
+/* Contacts: reveal nav on hover-zone / header hover (class toggled in TS). */
+.headerNavVisible.headerOverlay .centerDivider,
+.headerNavVisible.headerOverlay .navArea {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.headerNavVisible.headerOverlay .centerDivider {
+  height: .5px;
+  margin: 6px 0;
+}
+
+.headerNavVisible.headerOverlay .navArea {
+  max-height: 520px; /* enough for nav + dropdown container */
+  overflow: visible;
+}
+
 /* Header скрыт при скролле вниз */
 .headerHidden {
   transform: translateY(-100%);
@@ -41,19 +107,10 @@
   padding-bottom: 8px; /* Reduce padding since lower part is hidden */
 }
 
-.header:hover,
+.header:not(.headerOverlay):hover,
 .headerSolid {
- background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-secondary);
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
-}
-
-/* Cart page specific header styles */
-.headerCartPage .navArea {
-  display: none;
-}
-
-.headerCartPage .centerDivider {
-  display: none;
 }
 
 /* ===== Divider ===== */
@@ -213,6 +270,10 @@
 
 /* Добавляем квадратную полоску которая увеличивается слева направо при наведении и сокращается справа налево при уходе */
 
+.menuItemButton {
+  position: relative;
+}
+
 .menuLabel {
   position: relative;
   display: inline-block;
@@ -223,16 +284,12 @@
   content: '';
   position: absolute;
   bottom: -4px;
- left: 0;
+  left: 0;
   height: 1px;
   width: 0;
   background: #fff;
   transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   pointer-events: none;
-}
-
-.menuItemButton {
-  position: relative;
 }
 
 .menuItemButton.active,
@@ -268,35 +325,33 @@
 }
 
 .navHovering {
-  position: relative;
-}
-
-.navHovering::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 12px;
-  background: transparent;
+  padding-bottom: 12px;
 }
 
 .dropdownPanel {
   position: fixed;
   left: 0;
   right: 0;
-  top: calc(var(--header-h, 0px) - 1px);
+  top: calc(var(--header-h, 0px) - 1px); /* -1px to eliminate gap, account for any rounding */
   /* 80% of viewport height for the dropdown area; leave 20% gap to the bottom */
   height: calc(80vh - var(--header-h, 0px) + 1px);
   max-height: calc(100vh - var(--header-h, 0px) + 1px);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(0);
-  transition: opacity var(--transition-medium), transform var(--transition-medium);
+  transform: translateY(-10px);
+  /* BORK-style: медленное появление */
+  transition: 
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), 
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: var(--z-dropdown);
   overflow-y: auto;
-  pointer-events: none;
   background: var(--color-bg-secondary);
+  backdrop-filter: none;
+  box-shadow: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08); /* Move border to top to eliminate gap */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 0;
+  padding: 0;
 }
 
 .dropdownVisible {
@@ -324,7 +379,9 @@
 
 .dropdownContent {
   margin: 0;
-  padding: var(--spacing-xl) var(--spacing-lg);
+  margin-top: 0; /* Ensure no top margin */
+  /* BORK-style: увеличенные отступы */
+  padding: clamp(48px, 6vw, 80px) clamp(32px, 4vw, 64px);
   background: var(--color-bg-secondary);
   border: none;
   border-radius: 0;
@@ -370,13 +427,20 @@
   color: #fff;
   background: transparent;
   border: none;
-  transition: background var(--transition-fast);
+  /* BORK-style: медленный плавный transition с физикой */
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* GPU-ускорение */
+  transform: translateX(0) translateZ(0);
 }
 
 .dropdownListItem:hover {
-  transform: none;
+  /* Легкое движение вправо с физикой */
+  transform: translateX(4px) translateZ(0);
   border: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
+  opacity: 0.8;
 }
 
 .dropdownDot {
@@ -469,14 +533,29 @@
 }
 
 .dropdownPrimary {
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--color-accent), rgba(192, 192, 192, 0.75));
+  /* BORK-style: pill-shape кнопки */
+  padding: 14px 28px;
+  border-radius: 27.5px;
+  background: rgba(255, 255, 255, 0.9);
   color: #0a0a0a;
   text-decoration: none;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+  box-shadow: none;
+  /* BORK-style: медленный transition с физикой */
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* GPU-ускорение */
+  transform: translateY(0) translateZ(0);
+}
+
+.dropdownPrimary:hover {
+  opacity: 0.85;
+  /* Подъем против гравитации */
+  transform: translateY(-2px) translateZ(0);
 }
 
 .dropdownSecondary {
@@ -503,11 +582,17 @@
   border: none;
   text-decoration: none;
   color: #fff;
-  transition: background var(--transition-fast);
+  /* BORK-style: медленный transition с физикой */
+  transition: 
+    background 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* GPU-ускорение */
+  transform: translateY(0) translateZ(0);
 }
 
 .dropdownCard:hover {
-  transform: none;
+  /* Подъем против гравитации */
+  transform: translateY(-4px) translateZ(0);
   border: none;
   box-shadow: none;
   background: rgba(255, 255, 255, 0.05);

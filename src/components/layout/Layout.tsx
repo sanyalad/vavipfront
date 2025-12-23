@@ -12,11 +12,13 @@ export default function Layout() {
   
   // Home page has its own footer in the video sections wrapper
   const isHomePage = location.pathname === '/'
+  // Contacts page should be fullscreen on mobile, no padding-top
+  const isContactsPage = location.pathname === '/contacts'
 
   return (
     <div className={styles.layout}>
       <Header />
-      <main className={styles.main}>
+      <main className={`${styles.main} ${!isHomePage && !isContactsPage ? styles.mainNotHome : ''}`}>
         <Outlet />
       </main>
       {!isHomePage && <Footer />}

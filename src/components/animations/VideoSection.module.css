@@ -7,19 +7,17 @@
   min-height: 100svh;
   min-height: 100dvh;
   overflow: hidden;
-  will-change: transform, opacity;
+  /* GPU-ускорение */
   transform: translateZ(0);
-  /* PERF: Reduced from 0.55s to 0.35s for snappier animations */
+  backface-visibility: hidden;
+  perspective: 1000px;
+  /* Плавные transitions */
   transition:
-    transform 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    opacity 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    visibility 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    box-shadow 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   background: transparent;
   box-shadow: none;
   z-index: 1;
-  backface-visibility: hidden;
   border: none;
   outline: none;
   opacity: 0;
@@ -32,9 +30,9 @@
 }
 
 .videoSection[data-state="prev"] {
-  /* Старт выше экрана для выезда сверху при скролле вверх */
-  transform: translateY(-100%) scale(1);
-  opacity: 0;
+  /* Старт выше экрана */
+  transform: translateY(-100%) translateZ(0);
+  opacity: 1;
   visibility: hidden;
   pointer-events: none;
   z-index: 0 !important;
@@ -43,9 +41,9 @@
 }
 
 .videoSection[data-state="next"] {
-  /* Старт заметно ниже экрана для видимого выезда */
-  transform: translateY(150%) scale(0.98);
-  opacity: 0;
+  /* Старт ниже экрана */
+  transform: translateY(100%) translateZ(0);
+  opacity: 1;
   visibility: hidden;
   pointer-events: none;
   z-index: 0;
@@ -56,69 +54,67 @@
 
 .videoSection[data-state="idle"] {
   /* Секции, которые не являются next/prev/active - полностью скрыты, без сдвигов */
-  transform: translateY(0) scale(1);
+  transform: translateY(0) scale(1) translateZ(0);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   z-index: 0 !important;
   filter: none;
   box-shadow: none;
+  /* КРИТИЧНО: Освобождаем ресурсы GPU */
+  will-change: auto;
+  /* PERF: Изоляция контекста для неактивных секций */
+  contain: strict;
 }
 
 .videoSection.active,
 .videoSection[data-state="active"] {
-  transform: translateY(0) scale(1);
+  transform: translateY(0) scale(1) translateZ(0);
   opacity: 1;
   pointer-events: auto;
   z-index: 3;
   background: #000;
   box-shadow: none;
   visibility: visible;
-  /* PERF: Reduced from 0.55s to 0.35s for snappier animations */
+  will-change: auto;
   transition:
-    transform 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    opacity 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    visibility 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    box-shadow 0.35s cubic-bezier(0.25, 0.85, 0.2, 1),
-    filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 [data-direction="next"] .videoSection[data-state="next"] {
-  /* Выезжает снизу вверх до финальной позиции - ПЛАВНО! */
-  transform: translateY(0) scale(1);
-  /* Выше предыдущей, чтобы движение было видно */
+  /* Выезжает снизу вверх до финальной позиции */
+  transform: translateY(0) scale(1) translateZ(0);
   z-index: 5;
   opacity: 1;
   visibility: visible;
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.35);
   filter: none;
   pointer-events: none;
   transition: none;
-  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
-  animation: deckSlideUp 0.3s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+  animation: deckSlideUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 [data-direction="next"] .videoSection[data-state="prev"] {
   /* Текущая (бывшая активная) остаётся на месте, пока следующая выезжает */
-  opacity: 0.92;
+  opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
   z-index: 1 !important;
   pointer-events: none;
   box-shadow: none;
-  filter: brightness(0.95);
+  filter: none;
 }
 
+/* Простые keyframes без лишних фаз - секции всегда непрозрачны */
 @keyframes deckSlideUp {
-  from {
-    transform: translateY(150%) scale(0.98);
-    opacity: 0.65;
-    box-shadow: 0 -20px 38px rgba(0, 0, 0, 0.4);
-  }
-  to {
-    transform: translateY(0) scale(1);
+  0% {
+    transform: translateY(100%) scale(1) translateZ(0);
     opacity: 1;
-    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.32);
+  }
+  100% {
+    transform: translateY(0) scale(1) translateZ(0);
+    opacity: 1;
   }
 }
 
@@ -128,42 +124,40 @@
 }
 
 [data-direction="prev"] .videoSection[data-state="prev"] {
-  /* Выезжает сверху вниз до финальной позиции */
+  /* Выезжает сверху вниз - падает поверх текущей */
   opacity: 1;
   visibility: visible;
-  transform: translateY(0) scale(1);
-  z-index: 4 !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transform: translateY(0) scale(1) translateZ(0);
+  z-index: 6 !important;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
   pointer-events: none;
   transition: none;
-  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
-  animation: deckSlideDown 0.3s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+  animation: deckSlideDown 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* Простые keyframes без лишних фаз - секции всегда непрозрачны */
 @keyframes deckSlideDown {
-  from {
-    transform: translateY(-100%) scale(1);
-    opacity: 0.65;
-    box-shadow: 0 20px 38px rgba(0, 0, 0, 0.4);
-  }
-  to {
-    transform: translateY(0) scale(1);
+  0% {
+    transform: translateY(-100%) scale(1) translateZ(0);
     opacity: 1;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+  100% {
+    transform: translateY(0) scale(1) translateZ(0);
+    opacity: 1;
   }
 }
 
-/* При пролистывании вверх текущая активная уходит вниз */
+/* При пролистывании вверх текущая активная ОСТАЕТСЯ НА МЕСТЕ (верхняя падает поверх) */
 [data-direction="prev"] .videoSection[data-state="next"] {
   opacity: 1;
   visibility: visible;
-  transform: translateY(100%) scale(1);
+  /* Остается на месте, пока верхняя падает поверх */
+  transform: translateY(0) scale(1) translateZ(0);
   z-index: 1 !important;
   pointer-events: none;
   box-shadow: none;
-  /* PERF: Reduced from 0.45s to 0.3s for snappier animation */
-  transition: transform 0.3s cubic-bezier(0.23, 0.9, 0.15, 1),
-              opacity 0.3s cubic-bezier(0.23, 0.9, 0.15, 1);
+  /* Плавный fade-out */
+  transition: opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* Убеждаемся что секции в idle не показываются даже при direction */
@@ -199,8 +193,8 @@
   display: block;
   /* Без затемнения для чистой анимации */
   filter: brightness(1);
-  /* PERF: Reduced from 0.55s to 0.35s */
-  transition: filter 0.35s cubic-bezier(0.25, 0.85, 0.2, 1);
+  /* GPU-ускорение */
+  transform: translateZ(0);
   opacity: 1;
 }
 
@@ -238,7 +232,7 @@
   position: absolute;
   bottom: 90px;
   left: 50%;
-  transform: translate(-50%, 50px);
+  transform: translate(-50%, 50px) translateZ(0);
   font-family: 'Gotham', Helvetica, Arial, sans-serif;
   font-weight: 300;
   font-size: clamp(1.5rem, 4vw, 2.5rem);
@@ -249,20 +243,21 @@
   white-space: nowrap;
   opacity: 0;
   filter: blur(10px);
-  /* PERF: Reduced from 0.55s to 0.35s for faster caption appearance */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
   transition:
-    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    filter 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .videoSection.active .videoCaption,
 .videoSection[data-state="active"] .videoCaption {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, 0) translateZ(0);
   filter: blur(0);
-  /* PERF: reduced from 0.22s to 0.1s for faster caption appearance */
-  transition-delay: 0.1s;
+  /* Оптимальный delay для плавного появления */
+  transition-delay: 0.15s;
 }
 
 .videoSection[data-state="prev"] .videoCaption {
@@ -283,16 +278,43 @@
   filter: blur(0) !important;
 }
 
-/* During deck movement we keep NON-active captions hidden; active caption can stay visible */
-[data-direction="next"] .videoSection:not([data-state="active"]) .videoCaption,
-[data-direction="prev"] .videoSection:not([data-state="active"]) .videoCaption,
-[data-gesture="true"] .videoSection:not([data-state="active"]) .videoCaption {
+/* During deck movement we keep NON-active captions hidden,
+   BUT allow the incoming section's caption to be visible immediately (no lag). */
+[data-direction="next"] .videoSection:not([data-state="active"]):not([data-state="next"]) .videoCaption,
+[data-direction="prev"] .videoSection:not([data-state="active"]):not([data-state="prev"]) .videoCaption,
+[data-gesture="true"] .videoSection:not([data-state="active"]):not([data-state="next"]):not([data-state="prev"]) .videoCaption {
   opacity: 0 !important;
   transform: translate(-50%, 22px) !important;
   filter: blur(10px) !important;
   transition-delay: 0s !important;
 }
 
+/* Incoming caption should appear ONLY after animation completes */
+/* During gesture/animation, keep captions hidden to prevent artifacts */
+[data-gesture="true"] .videoSection[data-state="next"] .videoCaption,
+[data-gesture="true"] .videoSection[data-state="prev"] .videoCaption,
+[data-animating="true"] .videoSection[data-state="next"] .videoCaption,
+[data-animating="true"] .videoSection[data-state="prev"] .videoCaption {
+  opacity: 0 !important;
+  transform: translate(-50%, 22px) !important;
+  filter: blur(10px) !important;
+  transition-delay: 0s !important;
+}
+
+/* Show caption only after animation completes (data-animating="false") */
+[data-animating="false"] .videoSection[data-state="active"] .videoCaption {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) translateZ(0) !important;
+  filter: blur(0) !important;
+  transition-delay: 0.15s !important;
+}
+
+[data-direction="prev"] .videoSection[data-state="prev"] .videoCaption {
+  opacity: 0 !important;
+  transform: translate(-50%, 0) translateZ(0) !important;
+  filter: blur(0) !important;
+  transition-delay: 0s !important;
+}
 /* Активной секции разрешаем показывать подпись даже во время жеста/быстрой анимации */
 [data-gesture="true"] .videoSection[data-state="active"] .videoCaption {
   opacity: 1 !important;
@@ -341,11 +363,20 @@
   
   .videoSection {
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+    transition-duration: 0.35s;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
   
   .videoSection.active .videoCaption,
   .videoSection[data-state="active"] .videoCaption {
     filter: none;
+  }
+  
+  /* На мобильных анимация чуть быстрее */
+  [data-direction="next"] .videoSection[data-state="next"],
+  [data-direction="prev"] .videoSection[data-state="prev"] {
+    animation-duration: 0.45s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 
@@ -399,48 +430,61 @@
 [data-gesture="true"] .videoSection {
   transition: none !important;
   animation: none !important;
+  /* PERF: Enable GPU acceleration and layer isolation during gesture */
+  will-change: transform, opacity !important;
+  contain: layout style paint;
+  /* PERF: Simplify compositing */
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 [data-gesture="true"][data-direction="next"] .videoSection[data-state="next"] {
   /* Follow finger/trackpad: from below -> to center */
-  transform: translateY(calc(150% * (1 - var(--gesture-progress)))) scale(
-    calc(0.98 + 0.02 * var(--gesture-progress))
-  ) !important;
-  opacity: calc(0.65 + 0.35 * var(--gesture-progress)) !important;
+  transform: translateY(calc(100% * (1 - var(--gesture-progress)))) translateZ(0) !important;
+  opacity: 1 !important;
+  filter: none !important;
   visibility: visible !important;
   z-index: 5 !important;
   pointer-events: none;
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.35);
 }
 
 [data-gesture="true"][data-direction="next"] .videoSection[data-state="prev"] {
-  /* Current stays in place, slightly dims as the next comes in */
+  /* Current stays in place */
   transform: translateY(0) scale(1) !important;
-  opacity: calc(1 - 0.08 * var(--gesture-progress)) !important;
+  opacity: 1 !important;
   visibility: visible !important;
   z-index: 1 !important;
   pointer-events: none;
-  /* Avoid GPU-heavy full-screen filters on trackpads (causes stutter on macOS). */
   filter: none !important;
 }
 
 [data-gesture="true"][data-direction="prev"] .videoSection[data-state="prev"] {
-  /* Incoming previous: from above -> to center */
-  transform: translateY(calc(-100% * (1 - var(--gesture-progress)))) scale(1) !important;
-  opacity: calc(0.75 + 0.25 * var(--gesture-progress)) !important;
+  /* Incoming previous: падает сверху поверх текущей */
+  transform: translateY(calc(-100% * (1 - var(--gesture-progress)))) translateZ(0) !important;
+  opacity: 1 !important;
+  filter: none !important;
   visibility: visible !important;
-  z-index: 5 !important;
+  z-index: 6 !important;
   pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
 }
 
 [data-gesture="true"][data-direction="prev"] .videoSection[data-state="next"] {
-  /* Current active moves down proportionally */
-  transform: translateY(calc(100% * var(--gesture-progress))) scale(1) !important;
-  opacity: calc(1 - 0.08 * var(--gesture-progress)) !important;
+  /* Текущая остается на месте - верхняя падает поверх */
+  transform: translateY(0) scale(1) !important;
+  opacity: 1 !important;
   visibility: visible !important;
   z-index: 1 !important;
   pointer-events: none;
-  /* Avoid GPU-heavy full-screen filters on trackpads (causes stutter on macOS). */
   filter: none !important;
+}
+
+/* ===== Additional safeguards for idle sections ===== */
+/* Idle sections should never flash during transitions */
+[data-direction="next"] .videoSection[data-state="idle"],
+[data-direction="prev"] .videoSection[data-state="idle"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  animation: none !important;
 }

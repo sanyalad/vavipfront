@@ -1,12 +1,39 @@
+/* ===== BORK-style Typography ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap');
+
 /* ===== CSS Variables (из оригинального проекта) ===== */
 :root {
-  /* Времена анимаций и переходов */
-  --transition-fast: .2s ease;
-  --transition-medium: .3s ease;
-  --transition-slow: .35s ease;
+  /* BORK-style Typography */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Montserrat', 'Inter', sans-serif;
+  
+  /* Времена анимаций и переходов (BORK-style: медленные, премиальные) */
+  --transition-fast: 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+  --transition-medium: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.7s cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-premium: 0.8s cubic-bezier(0.23, 0.9, 0.15, 1);
   --transition-dropdown: .7s;
   --dropdown-speed: var(--transition-dropdown);
   --transition-long: .6s ease;
+  
+  /* Премиальные easing кривые */
+  --easing-premium: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --easing-enter: cubic-bezier(0.23, 0.9, 0.15, 1);
+  --easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --easing-micro: cubic-bezier(0.4, 0, 0.6, 1);
+  
+  /* Spring-like easing (имитация физики/гравитации) */
+  --easing-spring-light: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --easing-spring-medium: cubic-bezier(0.25, 1.25, 0.5, 1);
+  --easing-spring-heavy: cubic-bezier(0.2, 1, 0.4, 1);
+  --easing-gravity-down: cubic-bezier(0.23, 0.9, 0.15, 1);
+  --easing-gravity-up: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* BORK-style Spacing (увеличенные отступы) */
+  --spacing-section: clamp(64px, 8vw, 128px);
+  --spacing-component: clamp(32px, 4vw, 64px);
 
   /* Базовые размеры */
   --menu-x: 40px;
@@ -71,8 +98,8 @@
   --spacing-responsive-2xl: clamp(2rem, 1.75rem + 1.5vw, 3rem);
   --spacing-responsive-3xl: clamp(3rem, 2.5rem + 2vw, 4rem);
 
-  /* Typography */
-  --font-family: 'Gotham', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Typography (BORK-style: Inter + Montserrat) */
+  --font-family: var(--font-body);
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -127,13 +154,27 @@ html, body {
   height: 100%;
   background: var(--color-bg);
   color: var(--color-text-primary);
-  font-family: var(--font-family);
+  font-family: var(--font-body);
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: #1f2228 transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* BORK-style Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 300; /* Лёгкий шрифт BORK-style */
+  letter-spacing: 0.04em;
+}
+
+/* Uppercase акценты BORK-style */
+.text-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 500;
 }
 
 /* macOS-specific font optimizations */
@@ -656,5 +697,98 @@ body.mobile-menu-scroll-lock {
     body {
       color-scheme: light;
     }
+  }
+}
+
+/* ===== GPU Optimization Classes ===== */
+
+/* КРИТИЧНО: Принудительное GPU-ускорение для анимируемых элементов */
+.animated,
+[class*="motion"],
+.card,
+.button {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Изолировать контекст для лучшей производительности */
+.video-sections-wrapper,
+.cards-grid {
+  isolation: isolate;
+  contain: layout style paint;
+}
+
+/* ===== Will-change Optimization ===== */
+
+/* КРИТИЧНО: will-change только на hover (не постоянно) */
+.card:hover,
+.button:hover {
+  will-change: transform;
+}
+
+.card:not(:hover),
+.button:not(:hover) {
+  will-change: auto; /* Освобождаем ресурсы */
+}
+
+/* ===== Spring-like CSS animations ===== */
+
+.spring-in {
+  animation: springIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes springIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) translateZ(0);
+  }
+}
+
+/* Gravity down animation */
+.gravity-down {
+  animation: gravityDown 0.5s cubic-bezier(0.23, 0.9, 0.15, 1) forwards;
+}
+
+@keyframes gravityDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+/* Gravity up animation */
+.gravity-up {
+  animation: gravityUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes gravityUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .animated,
+  [class*="motion"],
+  .spring-in,
+  .gravity-down,
+  .gravity-up {
+    animation: none !important;
+    transition: none !important;
   }
 }

@@ -1,0 +1,347 @@
+/* ===== Global Micro-Animations ===== */
+
+/* 
+ * This file contains global micro-animations for improved UX:
+ * - Input focus states
+ * - Link hover effects
+ * - Button feedback
+ * - Loading states
+ * - Cart badge animations
+ */
+
+/* ===== Input Focus States ===== */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  transition: 
+    border-color 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+    transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 
+    0 0 0 3px rgba(255, 255, 255, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus:not(:placeholder-shown),
+textarea:focus:not(:placeholder-shown) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* ===== Checkbox/Radio Transitions ===== */
+input[type="checkbox"],
+input[type="radio"] {
+  transition: 
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+
+input[type="checkbox"]:hover,
+input[type="radio"]:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+input[type="checkbox"]:active,
+input[type="radio"]:active {
+  transform: scale(0.92);
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ===== Link Hover Effects ===== */
+a:not([class]) {
+  position: relative;
+  transition: color 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+a:not([class]):hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Underline animation for nav links */
+.nav-link,
+[data-nav-link] {
+  position: relative;
+}
+
+.nav-link::after,
+[data-nav-link]::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.nav-link:hover::after,
+[data-nav-link]:hover::after,
+.nav-link.active::after,
+[data-nav-link].active::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* ===== Image Progressive Loading ===== */
+img {
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+img[data-loading="true"],
+img.loading {
+  opacity: 0;
+}
+
+img[data-loaded="true"],
+img.loaded {
+  opacity: 1;
+}
+
+/* Blur-up effect for lazy loaded images */
+img[data-blur-up] {
+  filter: blur(10px);
+  transform: scale(1.05);
+  transition: 
+    filter 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+    transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+img[data-blur-up].loaded {
+  filter: blur(0);
+  transform: scale(1);
+}
+
+/* ===== Cart Badge Animation ===== */
+.cart-badge,
+[data-cart-badge] {
+  transition: 
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.3s ease;
+}
+
+.cart-badge.pulse,
+[data-cart-badge].pulse,
+.cart-badge[data-animate="true"],
+[data-cart-badge][data-animate="true"] {
+  animation: badgePulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badgePulse {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.3);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Badge count change animation */
+@keyframes countBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-8px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+  75% {
+    transform: translateY(-3px);
+  }
+}
+
+.cart-badge.count-change,
+[data-cart-badge].count-change {
+  animation: countBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ===== Dropdown Menu Animations ===== */
+[data-dropdown],
+.dropdown-menu {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top center;
+  transition: 
+    opacity 0.25s cubic-bezier(0.23, 1, 0.32, 1),
+    transform 0.25s cubic-bezier(0.23, 1, 0.32, 1),
+    visibility 0s 0.25s;
+}
+
+[data-dropdown].open,
+[data-dropdown][data-open="true"],
+.dropdown-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
+}
+
+/* Dropdown items stagger */
+[data-dropdown].open li,
+.dropdown-menu.open li {
+  opacity: 0;
+  transform: translateX(-10px);
+  animation: dropdownItemSlide 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+[data-dropdown].open li:nth-child(1) { animation-delay: 0.05s; }
+[data-dropdown].open li:nth-child(2) { animation-delay: 0.1s; }
+[data-dropdown].open li:nth-child(3) { animation-delay: 0.15s; }
+[data-dropdown].open li:nth-child(4) { animation-delay: 0.2s; }
+[data-dropdown].open li:nth-child(5) { animation-delay: 0.25s; }
+[data-dropdown].open li:nth-child(6) { animation-delay: 0.3s; }
+
+@keyframes dropdownItemSlide {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ===== Error Shake Animation ===== */
+.error-shake,
+[data-error="true"],
+.input-error {
+  animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+/* ===== Success Checkmark Animation ===== */
+.success-check {
+  animation: checkmarkDraw 0.4s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+@keyframes checkmarkDraw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== Loading Spinner ===== */
+.spinner,
+[data-spinner] {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Pulse Animation for Notifications ===== */
+.pulse,
+[data-pulse] {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===== Fade-in Animation Classes ===== */
+.fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Stagger Animation Delays ===== */
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger > *:nth-child(10) { animation-delay: 0.5s; }
+
+/* ===== Reduced Motion Support ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  /* Preserve essential visibility transitions */
+  [data-dropdown],
+  .dropdown-menu {
+    transition: opacity 0.01ms, visibility 0.01ms;
+  }
+}
+

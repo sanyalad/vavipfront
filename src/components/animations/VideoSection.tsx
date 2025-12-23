@@ -41,8 +41,6 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const nextVideoRef = useRef<{ webmLink: HTMLLinkElement; mp4Link: HTMLLinkElement } | null>(null)
   const primedRef = useRef(false)
   const isActiveRef = useRef(false)
-  const lastPlayedActiveIndexRef = useRef<number | null>(null)
-  const lastPlayedTimestampRef = useRef<number>(0)
 
   useImperativeHandle(forwardedRef, () => sectionRef.current as HTMLElement)
 
@@ -127,7 +125,9 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     }
   }, [isVideoReady])
 
-  // Play/pause video based on active state
+  // Play/pause video based on visibility-in-animation:
+  // - active should play
+  // - the incoming section during animation should also play (otherwise you see a "late start")
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -135,52 +135,26 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     // Предвзводим видео как только секция смонтировалась
     primeVideo()
 
-    if (isActive) {
-      // CRITICAL: Check if video is already playing to avoid unnecessary play() calls
-      // that can cause stuttering and double activation
-      // CRITICAL: Also check if we already played for this activeIndex to prevent double activation after snap back
-      // This prevents re-activation when isActive changes twice (once in scrollToIndex, once after animation/snap back)
-      // CRITICAL: Also check timestamp to prevent double activation within short time window (e.g., 500ms)
-      // BUT: If video was paused (e.g., after snap back), allow play even if timeSinceLastPlay < 1000ms
-      // This prevents video from not playing after snap back when isActive becomes true again
-      const now = performance.now()
-      const timeSinceLastPlay = now - lastPlayedTimestampRef.current
-      // Allow play if: video is paused AND (lastPlayedIndex is different OR enough time passed OR video was paused)
-      // The "video.paused" check ensures we can restart video after snap back even if timeSinceLastPlay < 1000ms
-      const shouldPlayVideo = video.paused && (lastPlayedActiveIndexRef.current !== index || timeSinceLastPlay > 500 || video.currentTime === 0)
-      
-      if (shouldPlayVideo) {
-        lastPlayedActiveIndexRef.current = index
-        lastPlayedTimestampRef.current = now
+    const shouldPlay =
+      isActive ||
+      (direction === 'next' && isNext) ||
+      (direction === 'prev' && isPrev)
+
+    if (shouldPlay) {
+      // If metadata is not ready yet, play() might still be queued; that's fine.
+      if (video.paused) {
         const p = video.play()
         if (p && typeof (p as Promise<void>).then === 'function') {
-          ;(p as Promise<void>)
-            .then(() => {
-              
-            })
-            .catch((_err: any) => {
-              
-            })
+          ;(p as Promise<void>).catch(() => {})
         }
       }
-    } else {
-      // CRITICAL: Reset lastPlayedActiveIndexRef when section becomes inactive
-      // This allows video to play again when section becomes active again (e.g., after scrolling back)
-      // BUT: Only reset if enough time has passed to prevent double activation during rapid isActive changes
-      // CRITICAL: Also check if video is actually paused to prevent reset during snap back
-      // CRITICAL: Reset immediately if video is paused and currentTime is 0 (video was reset)
-      const now = performance.now()
-      const timeSinceLastPlay = now - lastPlayedTimestampRef.current
-      if (lastPlayedActiveIndexRef.current === index && video.paused && (timeSinceLastPlay > 1000 || video.currentTime === 0)) {
-        lastPlayedActiveIndexRef.current = null
-        
-      }
-      // Only pause if video is actually playing to avoid unnecessary operations
-      if (!video.paused) {
-        video.pause()
-      }
+      return
     }
-  }, [isActive, isVideoReady, primeVideo])
+
+    if (!video.paused) {
+      video.pause()
+    }
+  }, [direction, isActive, isNext, isPrev, isVideoReady, primeVideo])
 
   // Prime when секция появляется в viewport (даже если не активна)
   useEffect(() => {

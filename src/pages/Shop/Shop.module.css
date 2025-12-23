@@ -1,6 +1,7 @@
 .shop {
   min-height: 100vh;
-  padding: calc(var(--header-h) + clamp(8px, 1vw, 12px)) 0 clamp(var(--spacing-xl), 3vw, var(--spacing-3xl));
+  /* BORK-style: увеличенные отступы */
+  padding: calc(var(--header-h) + 48px) 0 clamp(64px, 8vw, 128px);
   background: var(--color-bg);
 }
 
@@ -16,8 +17,9 @@
 }
 
 .title {
-  font-size: clamp(22px, 2.2vw, 34px);
-  font-weight: 400;
+  /* BORK-style: лёгкий шрифт, крупнее */
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 300;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -114,7 +116,9 @@
   background: #1f1f1f;
   border: none;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  /* BORK-style: медленные transitions */
+  transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
   position: relative;
   display: flex;
@@ -177,20 +181,26 @@
 .card {
   position: relative;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  /* BORK-style: убрать border, минимализм */
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.cardInner {
+  position: relative;
+  background: transparent;
+  border-radius: 8px;
   overflow: hidden;
-  transition: border-color var(--transition-fast), transform var(--transition-fast);
+  /* Smooth transitions for card lift effect */
+  transition: 
+    transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .cardLink {
   display: block;
   height: 100%;
-}
-
-.card:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-2px);
 }
 
 .cardTop {
@@ -210,12 +220,22 @@
   height: 100%;
   object-fit: contain;
   padding: 16px;
-  transition: transform 0.6s cubic-bezier(0.23, 0.9, 0.15, 1);
-  will-change: transform;
+  /* BORK-style: очень медленный zoom на hover */
+  transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+  /* GPU-ускорение */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .card:hover .cardImage img {
-  transform: scale(1.02);
+  /* Увеличен scale для премиальности */
+  transform: scale(1.05) translateZ(0);
+  will-change: transform;
+}
+
+/* Освобождаем will-change после hover */
+.card:not(:hover) .cardImage img {
+  will-change: auto;
 }
 
 .placeholder {
@@ -269,16 +289,18 @@
   color: #fff;
   display: grid;
   place-items: center;
+  /* BORK-style: кнопка появляется на hover */
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-6px) translateZ(0);
   pointer-events: none;
+  /* BORK-style: медленное появление с физикой */
   transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast),
-    transform var(--transition-fast),
-    opacity var(--transition-fast),
-    border-radius var(--transition-fast),
-    color var(--transition-fast);
+    background 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover .addButton {

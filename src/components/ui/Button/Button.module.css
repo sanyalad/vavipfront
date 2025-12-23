@@ -6,12 +6,32 @@
   font-family: inherit;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-radius: var(--radius-md);
-  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  /* BORK-style: pill-shape */
+  border-radius: 27.5px;
+  letter-spacing: 0.12em;
+  /* BORK-style: медленные transitions с физикой */
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  /* GPU-ускорение */
+  transform: translateY(0) translateZ(0);
+  backface-visibility: hidden;
+}
+
+.button:hover:not(:disabled) {
+  /* BORK-style: subtle подъем против гравитации */
+  transform: translateY(-2px) translateZ(0);
+}
+
+.button:active:not(:disabled) {
+  /* Прижимается вниз (гравитация) */
+  transform: translateY(0) translateZ(0) scale(0.98);
+  transition-duration: 0.15s;
 }
 
 .button:disabled {
@@ -21,13 +41,14 @@
 
 /* Variants */
 .primary {
-  background-color: var(--color-accent);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-accent);
+  /* BORK-style: белый фон, черный текст */
+  background: rgba(255, 255, 255, 0.9);
+  color: #0a0a0a;
+  border: none;
 }
 
 .primary:hover:not(:disabled) {
-  background-color: #14945f;
+  opacity: 0.85;
 }
 
 .secondary {
@@ -42,14 +63,13 @@
 }
 
 .outline {
-  background-color: transparent;
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .outline:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .ghost {
@@ -120,6 +140,36 @@
 .icon svg {
   width: 18px;
   height: 18px;
+}
+
+/* Ripple effect */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  margin-left: -50px;
+  margin-top: -50px;
+  background: currentColor;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.primary .ripple {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.secondary .ripple,
+.outline .ripple,
+.ghost .ripple {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Ensure text stays above ripple */
+.text {
+  position: relative;
+  z-index: 1;
 }
 
 

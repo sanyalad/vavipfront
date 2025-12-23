@@ -10,6 +10,7 @@
 }
 
 .toast {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -17,7 +18,10 @@
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .icon {
@@ -76,6 +80,38 @@
 .close svg {
   width: 16px;
   height: 16px;
+}
+
+/* Progress bar for auto-dismiss */
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: currentColor;
+  opacity: 0.3;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.success .progressBar {
+  background: var(--color-success);
+  opacity: 0.5;
+}
+
+.error .progressBar {
+  background: var(--color-error);
+  opacity: 0.5;
+}
+
+.warning .progressBar {
+  background: var(--color-warning);
+  opacity: 0.5;
+}
+
+.info .progressBar {
+  background: var(--color-accent);
+  opacity: 0.5;
 }
 
 /* Responsive */

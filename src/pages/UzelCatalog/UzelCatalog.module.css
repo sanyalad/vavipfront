@@ -69,6 +69,7 @@
 }
 
 .borkCategoryLinkActive {
+  /* BORK-style: только цвет текста для active state */
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -130,18 +131,20 @@
 .borkTile {
   position: relative;
   aspect-ratio: 4 / 5;
-  border-radius: 16px;
+  /* BORK-style: убрать border-radius или минимальный */
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* BORK-style: убрать border, минимализм */
+  border: none;
   display: grid;
   place-items: center;
   overflow: hidden;
-  transition: border-color var(--transition-fast), transform var(--transition-fast);
+  transition: border-color var(--transition-fast);
 }
 
 .borkCard:hover .borkTile {
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-2px);
+  /* BORK-style: убрать transform на hover */
+  transform: none;
 }
 
 .borkTileMark {

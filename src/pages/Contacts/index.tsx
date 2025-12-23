@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams } from 'react-router-dom'
 import { useUIStore } from '@/store/uiStore'
 import { detectPlatform } from '@/utils/platform'
+import { spring } from '@/utils/spring'
 import styles from './Contacts.module.css'
 
 type Department = 'uzel' | 'montazh' | 'bim' | 'shop'
@@ -11,14 +12,15 @@ type Country = 'russia' | 'kazakhstan' | 'belarus' | 'georgia' | 'uae'
 interface DepartmentOption {
   id: Department
   label: string
-  needsLocation: boolean // true = нужен выбор страны/города
+  needsLocation: boolean
+  description: string
 }
 
 const departments: DepartmentOption[] = [
-  { id: 'uzel', label: 'Узел ввода', needsLocation: true },
-  { id: 'montazh', label: 'Монтаж', needsLocation: true },
-  { id: 'bim', label: 'Проектирование', needsLocation: false },
-  { id: 'shop', label: 'Магазин', needsLocation: false },
+  { id: 'uzel', label: 'Узел ввода', needsLocation: true, description: 'Комплектные узлы ввода' },
+  { id: 'montazh', label: 'Монтаж', needsLocation: true, description: 'Монтажные работы' },
+  { id: 'bim', label: 'Проектирование', needsLocation: false, description: 'BIM проектирование' },
+  { id: 'shop', label: 'Магазин', needsLocation: false, description: 'Интернет-магазин' },
 ]
 
 const countries: { id: Country; label: string }[] = [
@@ -45,7 +47,6 @@ const phoneMap: Record<Country, Record<Department, string>> = {
   uae: { montazh: '+971 51 111 1111', uzel: '+971 52 222 2222', bim: '+971 53 333 3333', shop: '+971 54 444 4444' },
 }
 
-// Для bim и shop — единые контакты без привязки к стране
 const globalContacts: Partial<Record<Department, { phone: string; email: string }>> = {
   bim: { phone: '+7 931 248 70 13', email: 'bim@vavip.ru' },
   shop: { phone: '+7 931 248 70 13', email: 'shop@vavip.ru' },
@@ -53,19 +54,33 @@ const globalContacts: Partial<Record<Department, { phone: string; email: string 
 
 type Step = 'department' | 'country' | 'city' | 'contacts'
 
+// Ripple effect component
+function Ripple({ x, y }: { x: number; y: number }) {
+  return (
+    <motion.span
+      className={styles.ripple}
+      initial={{ scale: 0, opacity: 0.5 }}
+      animate={{ scale: 4, opacity: 0 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      style={{ left: x, top: y }}
+    />
+  )
+}
+
 export default function ContactsPage() {
-  const [searchParams, _setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { addToast } = useUIStore()
   const [step, setStep] = useState<Step>('department')
   const [department, setDepartment] = useState<Department | null>(null)
   const [country, setCountry] = useState<Country | null>(null)
   const [city, setCity] = useState<string | null>(null)
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number; targetId: Department }[]>([])
+  const rippleIdRef = useRef(0)
 
   const selectedDept = departments.find((d) => d.id === department)
 
   // Initialize from URL parameter or pathname
   useEffect(() => {
-    // Check URL pathname first (for /services/bim, /services/montazh)
     const pathname = window.location.pathname
     let deptParam: Department | null = null
     
@@ -74,7 +89,6 @@ export default function ContactsPage() {
     } else if (pathname === '/services/montazh') {
       deptParam = 'montazh'
     } else {
-      // Fallback to URL search params
       deptParam = searchParams.get('department') as Department | null
     }
     
@@ -91,14 +105,27 @@ export default function ContactsPage() {
     }
   }, [searchParams])
 
-  const handleDepartmentSelect = (dept: DepartmentOption) => {
-    setDepartment(dept.id)
-    if (dept.needsLocation) {
-      setStep('country')
-    } else {
-      // bim/shop — сразу показываем контакты
-      setStep('contacts')
-    }
+  const addRipple = useCallback((targetId: Department, e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const id = rippleIdRef.current++
+    setRipples((prev) => [...prev, { id, x, y, targetId }])
+    setTimeout(() => {
+      setRipples((prev) => prev.filter((r) => r.id !== id))
+    }, 600)
+  }, [])
+
+  const handleDepartmentSelect = (dept: DepartmentOption, e: React.MouseEvent<HTMLButtonElement>) => {
+    addRipple(dept.id, e)
+    setTimeout(() => {
+      setDepartment(dept.id)
+      if (dept.needsLocation) {
+        setStep('country')
+      } else {
+        setStep('contacts')
+      }
+    }, 150)
   }
 
   const handleCountrySelect = (c: Country) => {
@@ -136,7 +163,6 @@ export default function ContactsPage() {
     setCity(null)
   }
 
-  // Получаем телефон
   const getPhone = () => {
     if (!department) return ''
     if (selectedDept?.needsLocation && country) {
@@ -150,10 +176,72 @@ export default function ContactsPage() {
     return globalContacts[department]?.email ?? ''
   }
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-    exit: { opacity: 0, y: -20, transition: { duration: 0.2 } },
+  // Animation variants for large department blocks
+  const blockContainerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.05,
+      },
+    },
+    exit: {
+      opacity: 0,
+      transition: {
+        staggerChildren: 0.05,
+        staggerDirection: -1,
+        duration: 0.3,
+      },
+    },
+  }
+
+  const blockVariants = {
+    hidden: { 
+      opacity: 0, 
+      scale: 0.8, 
+      y: 50,
+    },
+    visible: { 
+      opacity: 1, 
+      scale: 1, 
+      y: 0,
+      transition: spring.heavy,
+    },
+    exit: { 
+      opacity: 0, 
+      scale: 0.9, 
+      y: -20,
+      transition: { duration: 0.25, ease: [0.4, 0, 1, 1] },
+    },
+  }
+
+  const contentVariants = {
+    hidden: { opacity: 0, scale: 0.95, y: 20 },
+    visible: { 
+      opacity: 1, 
+      scale: 1, 
+      y: 0,
+      transition: {
+        ...spring.medium,
+        staggerChildren: 0.05,
+      },
+    },
+    exit: { 
+      opacity: 0, 
+      scale: 0.95, 
+      y: -15,
+      transition: { duration: 0.3, ease: [0.4, 0, 1, 1] },
+    },
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: spring.light,
+    },
   }
 
   return (
@@ -163,212 +251,275 @@ export default function ContactsPage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className={styles.container}>
-        <h1 className={styles.pageTitle}>Контакты</h1>
-
-        <AnimatePresence mode="wait">
-          {/* Шаг 1: Выбор отдела — горизонтальные плитки */}
-          {step === 'department' && (
-            <motion.div
-              key="department"
-              className={styles.stepContent}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <p className={styles.stepQuestion}>Куда вы хотите позвонить?</p>
-              <div className={`${styles.optionsGrid} ${styles.departmentGrid}`}>
-                {departments.map((dept) => (
-                  <button
-                    key={dept.id}
-                    className={styles.optionButton}
-                    onClick={() => handleDepartmentSelect(dept)}
-                  >
-                    {dept.label}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Шаг 2: Выбор страны */}
-          {step === 'country' && (
-            <motion.div
-              key="country"
-              className={styles.stepContent}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <p className={styles.stepQuestion}>Выберите страну</p>
-              <div className={`${styles.optionsGrid} ${styles.secondaryGrid}`}>
-                {countries.map((c) => (
-                  <button
-                    key={c.id}
-                    className={styles.optionButton}
-                    onClick={() => handleCountrySelect(c.id)}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-              <button className={styles.backButton} onClick={handleBack}>
-                Назад
-              </button>
-            </motion.div>
-          )}
-
-          {/* Шаг 3: Выбор города */}
-          {step === 'city' && country && (
-            <motion.div
-              key="city"
-              className={styles.stepContent}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <p className={styles.stepQuestion}>Выберите город</p>
-              <div className={`${styles.optionsGrid} ${styles.secondaryGrid}`}>
-                {citiesByCountry[country].map((c) => (
-                  <button
-                    key={c}
-                    className={styles.optionButton}
-                    onClick={() => handleCitySelect(c)}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              <button className={styles.backButton} onClick={handleBack}>
-                Назад
-              </button>
-            </motion.div>
-          )}
-
-          {/* Шаг 4: Контакты */}
-          {step === 'contacts' && (
-            <motion.div
-              key="contacts"
-              className={styles.stepContent}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <div className={styles.contactsCard}>
-                <p className={styles.contactsLabel}>
-                  {selectedDept?.label}
-                  {city && country && ` · ${city}`}
-                </p>
-                
-                <a 
-                  href={`tel:${getPhone().replace(/\s/g, '')}`} 
-                  className={styles.phoneNumber}
-                  onClick={async (e) => {
-                    const phoneNumber = getPhone().replace(/\s/g, '')
-                    // Detect platform using centralized utility
-                    const platformInfo = detectPlatform()
-                    
-                    // Helper function to copy phone with notification
-                    const copyPhoneWithNotification = async () => {
-                      try {
-                        if (navigator.clipboard?.writeText) {
-                          await navigator.clipboard.writeText(getPhone())
-                        } else {
-                          const ta = document.createElement('textarea')
-                          ta.value = getPhone()
-                          ta.setAttribute('readonly', 'true')
-                          ta.style.position = 'fixed'
-                          ta.style.left = '-9999px'
-                          document.body.appendChild(ta)
-                          ta.select()
-                          document.execCommand('copy')
-                          document.body.removeChild(ta)
-                        }
-                        addToast({ type: 'success', message: 'Номер скопирован в буфер обмена' })
-                      } catch {
-                        // ignore clipboard failures
-                      }
-                    }
-                    
-                    // On mobile, let tel: link work normally
-                    if (platformInfo.isMobile) {
-                      // Try to copy as well
-                      await copyPhoneWithNotification()
-                      return
-                    }
-                    
-                    // On desktop (including Mac), try tel: first, then copy
-                    e.preventDefault()
-                    try {
-                      const telLink = document.createElement('a')
-                      telLink.href = `tel:${phoneNumber}`
-                      telLink.style.display = 'none'
-                      document.body.appendChild(telLink)
-                      telLink.click()
-                      document.body.removeChild(telLink)
-                      setTimeout(async () => {
-                        await copyPhoneWithNotification()
-                      }, 100)
-                    } catch {
-                      // If tel: fails, just copy
-                      await copyPhoneWithNotification()
-                    }
+      <AnimatePresence mode="wait">
+        {/* Step 1: Department selection - Large 2x2 grid blocks */}
+        {step === 'department' && (
+          <motion.div
+            key="department"
+            className={styles.fullscreenStep}
+            variants={blockContainerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <div className={styles.departmentGridLarge}>
+              {departments.map((dept, index) => (
+                <motion.button
+                  key={dept.id}
+                  className={styles.departmentBlock}
+                  data-index={index}
+                  variants={blockVariants}
+                  whileHover={{ 
+                    scale: 1.03,
+                    y: -8,
+                    transition: spring.light,
                   }}
+                  whileTap={{ 
+                    scale: 0.97,
+                    transition: { duration: 0.1 },
+                  }}
+                  onClick={(e) => handleDepartmentSelect(dept, e)}
                 >
-                  {getPhone()}
-                </a>
-                
-                {getEmail() && (
-                  <a href={`mailto:${getEmail()}`} className={styles.emailLink}>
-                    {getEmail()}
-                  </a>
-                )}
-                
-                <p className={styles.workHours}>Ежедневно с 8:00 до 22:00</p>
-                
-                {/* Social Links */}
-                <div className={styles.socialLinks}>
-                  <a 
-                    href="https://t.me/karen_vavip" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className={styles.socialLink}
-                    aria-label="Telegram"
-                  >
-                    <img src="/images/icons/telegram.svg" alt="Telegram" />
-                  </a>
-                  <a 
-                    href="https://instagram.com/karen_vavip" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className={styles.socialLink}
-                    aria-label="Instagram"
-                  >
-                    <img src="/images/icons/instagram.svg" alt="Instagram" />
-                  </a>
-                  <a 
-                    href="https://vk.com/karen_vavip" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className={styles.socialLink}
-                    aria-label="VKontakte"
-                  >
-                    <img src="/images/icons/vk.svg" alt="VK" />
-                  </a>
-                </div>
-              </div>
-              
-              <button className={styles.resetButton} onClick={handleReset}>
-                Выбрать другой отдел
-              </button>
+                  <span className={styles.blockLabel}>{dept.label}</span>
+                  <span className={styles.blockDescription}>{dept.description}</span>
+                  {ripples
+                    .filter((ripple) => ripple.targetId === dept.id)
+                    .map((ripple) => (
+                      <Ripple key={ripple.id} x={ripple.x} y={ripple.y} />
+                    ))}
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step 2: Country selection */}
+        {step === 'country' && (
+          <motion.div
+            key="country"
+            className={styles.centeredStep}
+            variants={contentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <motion.h1 className={styles.pageTitle} variants={itemVariants}>
+              Выберите страну
+            </motion.h1>
+            <motion.p className={styles.stepSubtitle} variants={itemVariants}>
+              {selectedDept?.label}
+            </motion.p>
+            
+            <motion.div className={styles.optionsGrid} variants={contentVariants}>
+              {countries.map((c) => (
+                <motion.button
+                  key={c.id}
+                  className={styles.optionButton}
+                  variants={itemVariants}
+                  whileHover={{ 
+                    scale: 1.05,
+                    y: -4,
+                    transition: spring.light,
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleCountrySelect(c.id)}
+                >
+                  {c.label}
+                </motion.button>
+              ))}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            
+            <motion.button 
+              className={styles.backButton} 
+              onClick={handleBack}
+              variants={itemVariants}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Назад
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* Step 3: City selection */}
+        {step === 'city' && country && (
+          <motion.div
+            key="city"
+            className={styles.centeredStep}
+            variants={contentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <motion.h1 className={styles.pageTitle} variants={itemVariants}>
+              Выберите город
+            </motion.h1>
+            <motion.p className={styles.stepSubtitle} variants={itemVariants}>
+              {selectedDept?.label} · {countries.find((c) => c.id === country)?.label}
+            </motion.p>
+            
+            <motion.div className={styles.optionsGrid} variants={contentVariants}>
+              {citiesByCountry[country].map((c) => (
+                <motion.button
+                  key={c}
+                  className={styles.optionButton}
+                  variants={itemVariants}
+                  whileHover={{ 
+                    scale: 1.05,
+                    y: -4,
+                    transition: spring.light,
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleCitySelect(c)}
+                >
+                  {c}
+                </motion.button>
+              ))}
+            </motion.div>
+            
+            <motion.button 
+              className={styles.backButton} 
+              onClick={handleBack}
+              variants={itemVariants}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Назад
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* Step 4: Contacts - Compact layout */}
+        {step === 'contacts' && (
+          <motion.div
+            key="contacts"
+            className={styles.centeredStep}
+            variants={contentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <motion.h1 className={`${styles.pageTitle} ${styles.pageTitleCompact}`} variants={itemVariants}>
+              Контакты
+            </motion.h1>
+
+            <motion.div className={styles.contactsCard} variants={contentVariants}>
+              <motion.p className={styles.contactsLabel} variants={itemVariants}>
+                {selectedDept?.label}
+                {city && country && ` · ${city}`}
+              </motion.p>
+              
+              <motion.a 
+                href={`tel:${getPhone().replace(/\s/g, '')}`} 
+                className={styles.phoneNumber}
+                variants={itemVariants}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={async (e) => {
+                  const phoneNumber = getPhone().replace(/\s/g, '')
+                  const platformInfo = detectPlatform()
+                  
+                  const copyPhoneWithNotification = async () => {
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(getPhone())
+                      } else {
+                        const ta = document.createElement('textarea')
+                        ta.value = getPhone()
+                        ta.setAttribute('readonly', 'true')
+                        ta.style.position = 'fixed'
+                        ta.style.left = '-9999px'
+                        document.body.appendChild(ta)
+                        ta.select()
+                        document.execCommand('copy')
+                        document.body.removeChild(ta)
+                      }
+                      addToast({ type: 'success', message: 'Номер скопирован в буфер обмена' })
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  
+                  if (platformInfo.isMobile) {
+                    await copyPhoneWithNotification()
+                    return
+                  }
+                  
+                  e.preventDefault()
+                  try {
+                    const telLink = document.createElement('a')
+                    telLink.href = `tel:${phoneNumber}`
+                    telLink.style.display = 'none'
+                    document.body.appendChild(telLink)
+                    telLink.click()
+                    document.body.removeChild(telLink)
+                    setTimeout(copyPhoneWithNotification, 100)
+                  } catch {
+                    await copyPhoneWithNotification()
+                  }
+                }}
+              >
+                {getPhone()}
+              </motion.a>
+              
+              {getEmail() && (
+                <motion.a 
+                  href={`mailto:${getEmail()}`} 
+                  className={styles.emailLink}
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.02 }}
+                >
+                  {getEmail()}
+                </motion.a>
+              )}
+              
+              <motion.p className={styles.workHours} variants={itemVariants}>
+                Ежедневно с 8:00 до 22:00
+              </motion.p>
+              
+              <motion.div className={styles.socialLinks} variants={itemVariants}>
+                <a 
+                  href="https://t.me/karen_vavip" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={styles.socialLink}
+                  aria-label="Telegram"
+                >
+                  <img src="/images/icons/telegram.svg" alt="Telegram" />
+                </a>
+                <a 
+                  href="https://instagram.com/karen_vavip" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={styles.socialLink}
+                  aria-label="Instagram"
+                >
+                  <img src="/images/icons/instagram.svg" alt="Instagram" />
+                </a>
+                <a 
+                  href="https://vk.com/karen_vavip" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={styles.socialLink}
+                  aria-label="VKontakte"
+                >
+                  <img src="/images/icons/vk.svg" alt="VK" />
+                </a>
+              </motion.div>
+            </motion.div>
+            
+            <motion.button 
+              className={styles.resetButton} 
+              onClick={handleReset}
+              variants={itemVariants}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Выбрать другой отдел
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

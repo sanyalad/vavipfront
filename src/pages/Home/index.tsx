@@ -1,9 +1,171 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import VideoSection from '@/components/animations/VideoSection'
 import Footer from '@/components/layout/Footer'
+import { useGesturePhysics, calculateWheelRange } from '@/hooks/useGesturePhysics'
+import type { GestureState, GestureDirection } from '@/utils/gesturePhysics'
 import styles from './Home.module.css'
+
+// ===== DEBUG MODE =====
+// Enable via URL ?deckDebug=1 or localStorage.setItem('deckDebug', '1')
+const getDebugMode = (): boolean => {
+  if (typeof window === 'undefined') return false
+  try {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('deckDebug') === '1') return true
+    if (localStorage.getItem('deckDebug') === '1') return true
+  } catch {
+    // localStorage might be blocked
+  }
+  return false
+}
+
+// Debug logging with structured data
+interface DeckDebugEvent {
+  type: 'wheel_start' | 'wheel_progress' | 'threshold_cross' | 'release_finalize' | 
+        'scrollToIndex_begin' | 'scrollToIndex_end' | 'gesture_reset' | 'mode_change' |
+        'commit_lock' | 'invariant_violation'
+  timestamp: number
+  data: Record<string, unknown>
+}
+
+const debugLog = (event: DeckDebugEvent) => {
+  if (!getDebugMode()) return
+  const prefix = `[DeckDebug ${event.timestamp.toFixed(1)}ms]`
+  if (event.type === 'invariant_violation') {
+    console.error(prefix, event.type, event.data)
+  } else {
+    console.log(prefix, event.type, event.data)
+  }
+}
+
+// Check deck state invariants
+const checkDeckInvariants = (state: {
+  activeIndex: number
+  fromIndex: number
+  incomingIndex: number | null
+  direction: 'next' | 'prev' | null
+  isAnimating: boolean
+  isGesturing: boolean
+  gestureProgress: number
+  lastSlideIndex: number
+}) => {
+  if (!getDebugMode()) return
+  
+  const violations: string[] = []
+  
+  // If direction is set, incomingIndex should be set (except during brief transitions)
+  if (state.direction && state.incomingIndex === null && !state.isGesturing) {
+    violations.push(`direction=${state.direction} but incomingIndex=null (not gesturing)`)
+  }
+  
+  // incomingIndex should be within bounds
+  if (state.incomingIndex !== null && (state.incomingIndex < 0 || state.incomingIndex > state.lastSlideIndex)) {
+    violations.push(`incomingIndex=${state.incomingIndex} out of bounds [0..${state.lastSlideIndex}]`)
+  }
+  
+  // activeIndex should be within bounds
+  if (state.activeIndex < 0 || state.activeIndex > state.lastSlideIndex) {
+    violations.push(`activeIndex=${state.activeIndex} out of bounds [0..${state.lastSlideIndex}]`)
+  }
+  
+  // gestureProgress should be in reasonable range
+  if (state.gestureProgress < -0.5 || state.gestureProgress > 1.5) {
+    violations.push(`gestureProgress=${state.gestureProgress} outside reasonable range`)
+  }
+  
+  // If animating, direction should be set
+  if (state.isAnimating && !state.direction) {
+    violations.push(`isAnimating=true but direction=null`)
+  }
+  
+  if (violations.length > 0) {
+    debugLog({
+      type: 'invariant_violation',
+      timestamp: performance.now(),
+      data: { violations, state }
+    })
+  }
+}
+
+// Debug overlay styles (inline to avoid CSS module)
+const debugOverlayStyles: React.CSSProperties = {
+  position: 'fixed',
+  top: 10,
+  right: 10,
+  zIndex: 99999,
+  background: 'rgba(0, 0, 0, 0.85)',
+  color: '#0f0',
+  fontFamily: 'monospace',
+  fontSize: '11px',
+  padding: '8px 12px',
+  borderRadius: '4px',
+  pointerEvents: 'none',
+  maxWidth: '320px',
+  lineHeight: 1.4,
+  backdropFilter: 'blur(4px)',
+  border: '1px solid rgba(0, 255, 0, 0.3)',
+}
+
+interface DebugOverlayProps {
+  activeIndex: number
+  fromIndex: number
+  incomingIndex: number | null
+  direction: 'next' | 'prev' | null
+  isAnimating: boolean
+  isGesturing: boolean
+  gestureProgress: number
+  footerProgress: number
+  isFooterOpen: boolean
+  trackpadCommitLock: boolean
+  postCommitIgnoreUntil: number
+  lastWheelDt: number
+  gestureSource: 'trackpad' | 'touch' | null
+}
+
+const DebugOverlay: React.FC<DebugOverlayProps> = (props) => {
+  const now = performance.now()
+  const postCommitRemaining = Math.max(0, props.postCommitIgnoreUntil - now)
+  
+  return (
+    <div style={debugOverlayStyles}>
+      <div style={{ borderBottom: '1px solid #0f04', paddingBottom: 4, marginBottom: 4 }}>
+        <strong>DECK DEBUG</strong>
+      </div>
+      <div>activeIdx: <span style={{ color: '#ff0' }}>{props.activeIndex}</span></div>
+      <div>fromIdx: {props.fromIndex}</div>
+      <div>incomingIdx: <span style={{ color: props.incomingIndex !== null ? '#0ff' : '#666' }}>
+        {props.incomingIndex ?? 'null'}
+      </span></div>
+      <div>direction: <span style={{ color: props.direction ? '#f0f' : '#666' }}>
+        {props.direction ?? 'null'}
+      </span></div>
+      <div style={{ marginTop: 4, borderTop: '1px solid #0f04', paddingTop: 4 }}>
+        <div>isAnimating: <span style={{ color: props.isAnimating ? '#f00' : '#0f0' }}>
+          {String(props.isAnimating)}
+        </span></div>
+        <div>isGesturing: <span style={{ color: props.isGesturing ? '#ff0' : '#0f0' }}>
+          {String(props.isGesturing)}
+        </span></div>
+        <div>gestureProgress: {props.gestureProgress.toFixed(3)}</div>
+      </div>
+      <div style={{ marginTop: 4, borderTop: '1px solid #0f04', paddingTop: 4 }}>
+        <div>commitLock: <span style={{ color: props.trackpadCommitLock ? '#f00' : '#0f0' }}>
+          {String(props.trackpadCommitLock)}
+        </span></div>
+        <div>postCommitIgnore: {postCommitRemaining.toFixed(0)}ms</div>
+        <div>lastWheelDt: {props.lastWheelDt.toFixed(0)}ms</div>
+        <div>source: {props.gestureSource ?? 'none'}</div>
+      </div>
+      <div style={{ marginTop: 4, borderTop: '1px solid #0f04', paddingTop: 4 }}>
+        <div>footerOpen: {String(props.isFooterOpen)}</div>
+        <div>footerProgress: {props.footerProgress.toFixed(3)}</div>
+      </div>
+    </div>
+  )
+}
 
 const videoSections = [
   {
@@ -37,15 +199,22 @@ const videoSections = [
 ]
 
 const WHEEL_THRESHOLD = 1
-// When progress crosses this value we auto-commit to the next/prev section
-// Reduced to 0.25 (25%) for easier slow scrolling - requires less scroll to flip page
-const SNAP_THRESHOLD = 0.25
+// Threshold to COMMIT a gesture (must scroll this far to flip page)
+// Increased from 0.25 to 0.35 for more stability on trackpads
+const SNAP_THRESHOLD_COMMIT = 0.35
+// Threshold to CANCEL a commit-in-progress (hysteresis)
+// Once past COMMIT threshold, must drop below this to cancel
+// This prevents "flickering" near the threshold
+const SNAP_THRESHOLD_CANCEL = 0.20
+// Legacy alias for backwards compatibility
+const SNAP_THRESHOLD = SNAP_THRESHOLD_COMMIT
 // If user stops the gesture before threshold, snap back after a short idle.
 // For a regular mouse wheel, ticks can have noticeable gaps, so keep this relatively high.
 const WHEEL_GESTURE_IDLE_RESET_MS = 520
 // Trackpads emit a stream of wheel deltas; treat a short pause as "release".
-// CRITICAL FIX: reduce from 140ms to 50ms for much faster finalization on slow scrolls
-const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 50
+// Release detection for trackpads. Higher value reduces accidental "release" during micro-pauses.
+// CRITICAL: Increased from 200ms to 400ms to prevent premature release while user is still scrolling
+const TRACKPAD_GESTURE_IDLE_FINALIZE_MS = 400
 // Heuristic: on macOS touchpads the *first* wheel event after a pause can be moderately large (e.g. 64),
 // which must still be treated as trackpad to avoid "one swipe = one full section" misclassification.
 // Keep this below typical mouse wheel ticks (~100/120) so mouse still snaps on one tick.
@@ -55,15 +224,42 @@ const TRACKPAD_DELTA_CUTOFF = 85
 const TRACKPAD_STREAM_CUTOFF_MS = 180
 // Trackpads can emit tiny deltas (1..5px). Don't start a gesture on a single tiny delta,
 // but DO allow slow gestures by accumulating until we cross a small threshold.
-const TRACKPAD_START_DELTA_PX = 6
+// Reduced for more sensitive gesture start
+const TRACKPAD_START_DELTA_PX = 4
 const TRACKPAD_START_ACCUM_WINDOW_MS = 120
-// Mouse wheels should advance slower for more visible animation (more "ticks" to cross the threshold)
-// Increased from 320 to 600 to make mouse wheel animation more noticeable and smooth
-const MOUSE_WHEEL_RANGE = 600
+// Duration to ignore wheel events after a commit (absorbs trackpad inertia)
+// Too short: inertia causes immediate re-gesture or skipping
+// Too long: feels unresponsive to intentional new gestures
+const POST_COMMIT_IGNORE_MS = 400  // Increased from 350ms for more stable absorption
+// Mouse wheel range is now in calculateWheelRange() from useGesturePhysics
+// Trackpad range is also calculated dynamically
+// Touch swipe range is now calculated by calculateWheelRange() from useGesturePhysics
+
+// ===== PHYSICS ENGINE =====
+// All momentum, friction, and spring physics are now handled by GesturePhysicsEngine
+// See: frontend/src/utils/gesturePhysics.ts
+
+// Legacy velocity tracking for footer gesture (until migrated to physics engine)
+const VELOCITY_WINDOW_MS = 80
+const MAX_VELOCITY_SAMPLES = 8
+
+interface VelocitySample {
+  progress: number
+  ts: number
+}
 
 export default function HomePage() {
   const location = useLocation()
   const prefersReducedMotion = useRef(false)
+  
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState(false)
+  const debugWheelDtRef = useRef(0)
+  
+  // Initialize debug mode on mount
+  useEffect(() => {
+    setDebugMode(getDebugMode())
+  }, [])
 
   const videoWrapperRef = useRef<HTMLDivElement | null>(null)
   const footerDrawerRef = useRef<HTMLDivElement | null>(null)
@@ -94,12 +290,29 @@ export default function HomePage() {
   const trackpadCommitLockExpiresAtRef = useRef(0)
   const lastSlideArrivedAtRef = useRef(0)
   const activeIndexRef = useRef(0)
-  // Throttle progress updates to 60fps
-  const lastProgressUpdateTsRef = useRef(0)
-  const lastProgressValueRef = useRef(0)
-  // Velocity detection for fast swipes
-  const velocityDeltasRef = useRef<{ delta: number; ts: number }[]>([])
+  // Throttling for physics.input() to prevent overload during fast scrolling
+  const lastPhysicsInputTsRef = useRef(0)
+  const accumulatedDeltaRef = useRef(0)
+  const accumulatedDeltaDirRef = useRef<'next' | 'prev' | null>(null)
+  const rafScheduledRef = useRef(false)
+  // CRITICAL: Adaptive throttling - more aggressive for fast scroll, less for slow scroll
+  // This prevents lag during fast scrolling while maintaining responsiveness for slow gestures
+  const PHYSICS_INPUT_THROTTLE_MS = 8 // ~125fps max - increased for better performance during fast scroll
+  // Enhanced velocity tracking for momentum scrolling (legacy, used by touch/footer)
+  const velocitySamplesRef = useRef<VelocitySample[]>([])
+  // Momentum animation state (legacy)
+  const momentumRafRef = useRef<number | null>(null)
+  const isMomentumActiveRef = useRef(false)
+  // Touch velocity tracking
+  const touchVelocitySamplesRef = useRef<{ y: number; ts: number }[]>([])
+  // Track last gesture source to apply different "release" semantics.
+  const lastGestureSourceRef = useRef<'trackpad' | 'touch' | null>(null)
+  // Hysteresis tracking: once we cross COMMIT threshold, we've "entered" commit zone
+  // Need to drop below CANCEL threshold to exit (prevents flickering at boundary)
+  const hasEnteredCommitZoneRef = useRef(false)
 
+  // ===== STATE MANAGEMENT =====
+  // Use regular useState but with helper for atomic batch updates
   const [activeIndex, setActiveIndex] = useState(0)
   const [fromIndex, setFromIndex] = useState(0)
   const [incomingIndex, setIncomingIndex] = useState<number | null>(null)
@@ -109,7 +322,91 @@ export default function HomePage() {
   const [isGesturing, setIsGesturing] = useState(false)
   const [footerProgress, setFooterProgress] = useState(0) // 0..1
   const [isFooterOpen, setIsFooterOpen] = useState(false)
+  
+  // Derived mode for CSS targeting (computed, not stateful)
+  const deckMode = useMemo(() => {
+    if (isAnimating) {
+      return direction === 'next' ? 'animating_next' : direction === 'prev' ? 'animating_prev' : 'idle'
+    } else if (isGesturing) {
+      return direction === 'next' ? 'gesturing_next' : direction === 'prev' ? 'gesturing_prev' : 'idle'
+    }
+    return 'idle'
+  }, [isAnimating, isGesturing, direction])
+  
   const lastSlideIndex = useMemo(() => videoSections.length - 1, [])
+  
+  // ===== PHYSICS ENGINE INTEGRATION =====
+  // Handles: dt-based momentum, iOS-like coast, snap spring, micro rubber-band
+  // NOTE: commit/rollback MUST NOT trigger keyframe-based scrollToIndex() for trackpad,
+  // otherwise you'll see a second \"pulse\". We finalize instantly like the legacy trackpad path.
+  const physicsCommitHandler = useCallback((dir: GestureDirection) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:332',message:'physicsCommitHandler called',data:{dir,activeIndex:activeIndexRef.current,lastSlideIndex,physicsState:physics.getSnapshot().state,isCommitting:isCommittingRef.current,trackpadCommitLock:trackpadCommitLockRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'T'})}).catch(()=>{});
+    // #endregion
+    if (!dir) return
+    
+    // CRITICAL: Prevent multiple commits during fast scrolling
+    // This can happen when snap animations complete rapidly in succession
+    if (isCommittingRef.current || trackpadCommitLockRef.current) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:340',message:'physicsCommitHandler SKIPPED - already committing',data:{dir,isCommitting:isCommittingRef.current,trackpadCommitLock:trackpadCommitLockRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'T'})}).catch(()=>{});
+      // #endregion
+      return
+    }
+    // Footer special-case on last slide
+    if (dir === 'next' && activeIndexRef.current === lastSlideIndex) {
+      // Let existing footer logic handle open; we just exit gesture state.
+      resetGesture()
+      const canOpenFooter = !isAnimatingRef.current && lastSlideArrivedAtRef.current > 0
+      if (canOpenFooter) openFooter()
+      return
+    }
+    const nextIdx =
+      dir === 'next'
+        ? clampIndex(activeIndexRef.current + 1)
+        : clampIndex(activeIndexRef.current - 1)
+    if (nextIdx === activeIndexRef.current) {
+      resetGesture()
+      return
+    }
+    // Finalize WITHOUT keyframes (no second movement)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:351',message:'Calling finalizeTrackpadGesture from physicsCommitHandler',data:{nextIdx,physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    finalizeTrackpadGesture(1, nextIdx)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:354',message:'physicsCommitHandler completed',data:{physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+  // NOTE: intentionally empty deps to avoid TDZ issues (finalizeTrackpadGesture/openFooter are declared later).
+  // These callbacks are only invoked after initial render, when all hooks are initialized.
+  }, [])
+  
+  const physicsRollbackHandler = useCallback(() => {
+    // Spring back handled by physics engine; when it settles at 0 we finalize.
+    finalizeTrackpadGesture(0, null)
+  }, [])
+  
+  const physicsStateChangeHandler = useCallback((state: GestureState, prevState: GestureState) => {
+    const isActive = state !== 'idle'
+    setIsGesturing(isActive)
+    
+    // When entering interacting from idle, set up direction and indices
+    if (state === 'interacting' && prevState === 'idle') {
+      // Direction and indices are set by input handler
+    }
+  }, [])
+  
+  // Initialize physics engine hook
+  const physics = useGesturePhysics({
+    wrapperRef: videoWrapperRef,
+    onCommit: physicsCommitHandler,
+    onRollback: physicsRollbackHandler,
+    onStateChange: physicsStateChangeHandler,
+    updateReactProgressState: false,
+  })
+  
+  // Track if physics engine is active for current gesture
+  const usePhysicsEngineRef = useRef(false)
 
   useEffect(() => {
     activeIndexRef.current = activeIndex
@@ -181,66 +478,322 @@ export default function HomePage() {
     }
   }, [])
 
+  // Stop momentum animation
+  const stopMomentumAnimation = useCallback(() => {
+    if (momentumRafRef.current) {
+      window.cancelAnimationFrame(momentumRafRef.current)
+      momentumRafRef.current = null
+    }
+    isMomentumActiveRef.current = false
+  }, [])
+
+  // NOTE: Velocity calculation is now handled by physics engine
+
+  // Add a velocity sample
+  const addVelocitySample = useCallback((progress: number) => {
+    const now = performance.now()
+    velocitySamplesRef.current.push({ progress, ts: now })
+    
+    // Keep only recent samples
+    if (velocitySamplesRef.current.length > MAX_VELOCITY_SAMPLES) {
+      velocitySamplesRef.current = velocitySamplesRef.current.slice(-MAX_VELOCITY_SAMPLES)
+    }
+    
+    // Clean old samples
+    velocitySamplesRef.current = velocitySamplesRef.current.filter(
+      s => now - s.ts < VELOCITY_WINDOW_MS * 2
+    )
+  }, [])
+
+  // Clear velocity samples
+  const clearVelocitySamples = useCallback(() => {
+    velocitySamplesRef.current = []
+  }, [])
+
+  const finalizeTrackpadGesture = useCallback(
+    (target: 0 | 1, nextIndex: number | null) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:485',message:'finalizeTrackpadGesture called',data:{target,nextIndex,physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      debugLog({
+        type: 'release_finalize',
+        timestamp: performance.now(),
+        data: {
+          target,
+          nextIndex,
+          gestureProgress: gestureProgressRef.current.toFixed(3),
+          activeIndex: activeIndexRef.current,
+          source: 'trackpad',
+          action: target === 1 ? 'commit' : 'rollback'
+        }
+      })
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:512',message:'finalizeTrackpadGesture: stopping timers',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      stopFinalizeTimer()
+      stopGestureTimer()
+      stopGestureRaf()
+
+      // Lock input to avoid inertia tail causing another gesture.
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:518',message:'finalizeTrackpadGesture: setting locks',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      isCommittingRef.current = true
+      isAnimatingRef.current = true
+      trackpadCommitLockRef.current = true
+      
+      // CRITICAL: For trackpad, snap animation already completed via physics engine
+      // No need to set isAnimating=true as it creates a second visual animation
+      // Just ensure data-animating="false" so captions appear immediately
+      if (target === 1 && nextIndex !== null) {
+        // Set direction for state tracking (not for animation)
+        const animDirection = nextIndex > activeIndexRef.current ? 'next' : 'prev'
+        setDirection(animDirection)
+        setFromIndex(activeIndexRef.current)
+        setIncomingIndex(nextIndex)
+        
+        // CRITICAL: Ensure isAnimating is false so captions appear immediately
+        // Snap animation already completed, no need for additional animation state
+        setIsAnimating(false)
+        isAnimatingRef.current = false
+        
+        // Clear transitional states after a brief delay to allow captions to appear
+        setTimeout(() => {
+          setDirection(null)
+          setIncomingIndex(null)
+        }, 150) // Brief delay to allow captions to appear smoothly
+      }
+      
+      debugLog({
+        type: 'commit_lock',
+        timestamp: performance.now(),
+        data: { locked: true, reason: 'finalize_trackpad_gesture' }
+      })
+      
+      scheduleTrackpadUnlock()
+      
+      // CRITICAL: Check physics state BEFORE setActiveIndex to avoid interrupting snap animation
+      // If physics is snapping, we must NOT reset it, as it needs to complete naturally
+      const currentPhysicsState = physics.getSnapshot().state
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:533',message:'finalizeTrackpadGesture: checking physics state BEFORE setActiveIndex',data:{target,nextIndex,physicsState:currentPhysicsState},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      
+      // CRITICAL: Decide whether to reset physics BEFORE setActiveIndex (which may cause re-render)
+      // Store the decision in a variable to use after setActiveIndex
+      const shouldResetPhysics = currentPhysicsState !== 'snapping'
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:540',message:'finalizeTrackpadGesture: decided on physics reset',data:{shouldResetPhysics,physicsState:currentPhysicsState},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+
+      // ATOMIC STATE UPDATE: Finalize trackpad gesture
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:549',message:'finalizeTrackpadGesture: checking condition before setActiveIndex',data:{target,nextIndex,conditionResult:target === 1 && nextIndex !== null},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      if (target === 1 && nextIndex !== null) {
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:555',message:'TRY BLOCK ENTERED',data:{target,nextIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'N'})}).catch(()=>{});
+          // #endregion
+          
+          // Commit gesture - update to new index immediately (no CSS keyframes for trackpad)
+          // Use flushSync to ensure state updates are applied synchronously before continuing
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:563',message:'BEFORE flushSync',data:{nextIndex,currentActiveIndex:activeIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'N'})}).catch(()=>{});
+          // #endregion
+          flushSync(() => {
+            setActiveIndex(nextIndex)
+            setFromIndex(nextIndex)
+          })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:571',message:'AFTER flushSync',data:{nextIndex,newActiveIndex:activeIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'N'})}).catch(()=>{});
+          // #endregion
+        } catch (error) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:575',message:'CATCH BLOCK - ERROR OCCURRED',data:{error:String(error),stack:error instanceof Error ? error.stack : 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'N'})}).catch(()=>{});
+          // #endregion
+          throw error
+        }
+        lastSlideArrivedAtRef.current = nextIndex === lastSlideIndex ? performance.now() : 0
+        postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:553',message:'finalizeTrackpadGesture AFTER setActiveIndex',data:{nextIndex,postCommitIgnoreUntil:postCommitIgnoreUntilRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      }
+
+      // #region agent log
+      const wrapperEl = videoWrapperRef.current;
+      const gestureProgressVar = wrapperEl ? getComputedStyle(wrapperEl).getPropertyValue('--gesture-progress') : 'N/A';
+      const dataGesture = wrapperEl?.getAttribute('data-gesture') || 'N/A';
+      const dataDirection = wrapperEl?.getAttribute('data-direction') || 'N/A';
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:530',message:'finalizeTrackpadGesture BEFORE clearing gesture state',data:{dataGesture,dataDirection,gestureProgressVar,currentGestureProgress:gestureProgressRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      // Clear transitional states, exit gesture mode
+      // CRITICAL: Don't clear incomingIndex/direction here if we set isAnimating=true above
+      // They will be cleared by the setTimeout callback after animation "completes"
+      if (target !== 1 || nextIndex === null) {
+        setIncomingIndex(null)
+        setDirection(null)
+      }
+      setIsGesturing(false)
+      setGestureProgress(0)
+      
+      // CRITICAL: For trackpad, we must NOT clear data-gesture and --gesture-progress here,
+      // as this happens before React updates data-state of sections.
+      // Instead, we clear them in useEffect after all state updates complete.
+      // This prevents dark screen flashes when sections have data-state="next"/"prev" but data-gesture="false"
+      
+      // #region agent log
+      requestAnimationFrame(() => {
+        const wrapperEl2 = videoWrapperRef.current;
+        const dataGesture2 = wrapperEl2?.getAttribute('data-gesture') || 'N/A';
+        const dataDirection2 = wrapperEl2?.getAttribute('data-direction') || 'N/A';
+        const gestureProgressVar2 = wrapperEl2 ? getComputedStyle(wrapperEl2).getPropertyValue('--gesture-progress') : 'N/A';
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:535',message:'finalizeTrackpadGesture AFTER clearing gesture state (RAF)',data:{dataGesture:dataGesture2,dataDirection:dataDirection2,gestureProgressVar:gestureProgressVar2},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      });
+      // #endregion
+
+      // Reset refs
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:577',message:'finalizeTrackpadGesture: resetting refs',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      gestureDirectionRef.current = null
+      gestureLockedRef.current = false
+      gestureProgressRef.current = 0
+      clearVelocitySamples()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:582',message:'finalizeTrackpadGesture: refs reset, before unlock flags',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+
+      // Unlock flags; keep commitLock until wheel stream goes idle (scheduleTrackpadUnlock).
+      isAnimatingRef.current = false
+      isCommittingRef.current = false
+      
+      // CRITICAL: Reset physics engine if needed (decision was made before setActiveIndex)
+      // If it's snapping, let it complete naturally and transition to idle
+      // This prevents interrupting the snap animation which would prevent the idle transition
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:612',message:'Checking if physics.reset() needed in finalizeTrackpadGesture',data:{shouldResetPhysics,physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      if (shouldResetPhysics) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:616',message:'Calling physics.reset() in finalizeTrackpadGesture',data:{physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        physics.reset()
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:619',message:'physics.reset() completed in finalizeTrackpadGesture',data:{physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:622',message:'Skipping physics.reset() - engine is snapping, will transition to idle naturally',data:{physicsState:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:583',message:'UNLOCKED flags in finalizeTrackpadGesture',data:{isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current,trackpadCommitLock:trackpadCommitLockRef.current,postCommitIgnoreUntil:postCommitIgnoreUntilRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+    },
+    [
+      clearVelocitySamples,
+      lastSlideIndex,
+      scheduleTrackpadUnlock,
+      stopFinalizeTimer,
+      stopGestureRaf,
+      stopGestureTimer,
+    ],
+  )
+
+  // Smooth rollback animation for gesture reset
+  const animateRollback = useCallback(() => {
+    stopMomentumAnimation()
+    
+    const animateFrame = () => {
+      const current = gestureProgressRef.current
+      if (current > 0.01) {
+        // Smooth exponential decay
+        const step = current * 0.15
+        gestureProgressRef.current = Math.max(0, current - step)
+        setGestureProgress(gestureProgressRef.current)
+        gestureRafRef.current = requestAnimationFrame(animateFrame)
+      } else {
+        // Complete reset
+        gestureProgressRef.current = 0
+        setGestureProgress(0)
+        gestureLockedRef.current = false
+        gestureDirectionRef.current = null
+        setIncomingIndex(null)
+        setDirection(null)
+        setIsGesturing(false)
+        // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+        const wrapper = videoWrapperRef.current
+        if (wrapper) {
+          wrapper.setAttribute('data-gesture', 'false')
+          wrapper.setAttribute('data-direction', 'idle')
+          wrapper.style.setProperty('--gesture-progress', '0')
+        }
+        gestureRafRef.current = null
+        clearVelocitySamples()
+      }
+    }
+    
+    if (gestureRafRef.current) {
+      cancelAnimationFrame(gestureRafRef.current)
+    }
+    gestureRafRef.current = requestAnimationFrame(animateFrame)
+  }, [clearVelocitySamples, stopMomentumAnimation])
+
+  // NOTE: Legacy animateWithMomentum removed - now handled by physics engine
+
   const scheduleGestureReset = useCallback((delayMs: number) => {
     stopGestureTimer()
     gestureTimerRef.current = window.setTimeout(() => {
-      // If we didn't cross the threshold, snap back
-      gestureLockedRef.current = false
-      gestureDirectionRef.current = null
-      gestureProgressRef.current = 0
-      setGestureProgress(0)
-      setIncomingIndex(null)
-      setDirection(null)
-      setIsGesturing(false)
+      // If we didn't cross the threshold, smoothly snap back
+      animateRollback()
     }, delayMs)
-  }, [stopGestureTimer])
+  }, [stopGestureTimer, animateRollback])
 
-  const publishGestureProgressImmediate = useCallback(() => {
-    // For mouse wheels we want immediate, per-tick updates (no RAF batching),
-    // otherwise the first visible movement can look like a jump.
-    setGestureProgress(gestureProgressRef.current)
-  }, [])
-
-  // PERF: Throttled version for trackpad - limits updates to 60fps and skips small changes
-  const publishGestureProgressThrottled = useCallback(() => {
-    const now = performance.now()
-    const lastTs = lastProgressUpdateTsRef.current
-    const lastValue = lastProgressValueRef.current
-    const currentValue = gestureProgressRef.current
-    
-    // Throttle to ~240fps (4.17ms between updates) for smoother, more responsive trackpad scrolling
-    // Reduced from 8ms to 4ms to prevent lag accumulation and provide smoother updates
-    const timeSinceLastUpdate = now - lastTs
-    if (timeSinceLastUpdate < 4) {
-      return
-    }
-    
-    // Skip if change is too small (< 0.001) for smoother, more responsive updates on slow scrolls
-    // Reduced from 0.002 to 0.001 to allow more frequent updates during slow scrolling
-    const delta = Math.abs(currentValue - lastValue)
-    if (delta < 0.001 && currentValue > 0 && currentValue < 1) {
-      return
-    }
-    
-    lastProgressUpdateTsRef.current = now
-    lastProgressValueRef.current = currentValue
-    setGestureProgress(currentValue)
-  }, [])
+  // NOTE: Progress updates are now handled by physics engine which writes CSS vars directly
+  // which updates CSS vars directly via RAF for optimal performance
 
 
   const resetGesture = useCallback(() => {
+    debugLog({
+      type: 'gesture_reset',
+      timestamp: performance.now(),
+      data: {
+        wasGesturing: gestureProgressRef.current > 0,
+        gestureProgress: gestureProgressRef.current.toFixed(3),
+        direction: gestureDirectionRef.current,
+        isAnimating: isAnimatingRef.current,
+        isCommitting: isCommittingRef.current,
+        willClearDirection: !isAnimatingRef.current && !isCommittingRef.current
+      }
+    })
+    
     stopGestureTimer()
     stopFinalizeTimer()
     stopGestureRaf()
     gestureLockedRef.current = false
     gestureDirectionRef.current = null
     gestureProgressRef.current = 0
+    hasEnteredCommitZoneRef.current = false  // Reset hysteresis
     setGestureProgress(0)
-    // CRITICAL: Only reset incomingIndex if not animating (to prevent clearing during animation)
-    // CRITICAL: Also check isCommittingRef to prevent clearing during mouse wheel animation
+    
+    // Only reset transitional states if not animating/committing
     if (!isAnimatingRef.current && !isCommittingRef.current) {
       setIncomingIndex(null)
       setDirection(null)
+    }
+    // CRITICAL: Always reset data-gesture synchronously when setIsGesturing(false) is called
+    // This must happen BEFORE setIsGesturing to prevent race conditions
+    const wrapper = videoWrapperRef.current
+    if (wrapper) {
+      wrapper.setAttribute('data-gesture', 'false')
+      wrapper.setAttribute('data-direction', 'idle')
+      wrapper.style.setProperty('--gesture-progress', '0')
     }
     setIsGesturing(false)
   }, [stopFinalizeTimer, stopGestureRaf, stopGestureTimer])
@@ -282,7 +835,7 @@ export default function HomePage() {
     resetGesture()
     // CRITICAL: Absorb inertia after closing footer to prevent immediate section scroll
     // Reduced to 350ms for better responsiveness while still preventing inertia
-    postCommitIgnoreUntilRef.current = performance.now() + 350
+    postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
     // NOTE: Do NOT unlock trackpadCommitLockRef here.
     // It must stay locked until the wheel stream goes idle (wheelDt > TRACKPAD_STREAM_CUTOFF_MS),
     // otherwise trackpad inertia can immediately start a new gesture on the next slide.
@@ -294,6 +847,11 @@ export default function HomePage() {
   const scrollToIndex = useCallback((nextIndex: number) => {
     // CRITICAL: Block if already animating (but allow if just committing - that's expected when called from finalizeGesture)
     if (isAnimatingRef.current) {
+      debugLog({
+        type: 'scrollToIndex_begin',
+        timestamp: performance.now(),
+        data: { blocked: true, reason: 'already_animating', nextIndex }
+      })
       return
     }
     
@@ -305,10 +863,28 @@ export default function HomePage() {
     
     // CRITICAL: Block if already at target index
     if (safeIndex === activeIndex) {
+      debugLog({
+        type: 'scrollToIndex_begin',
+        timestamp: performance.now(),
+        data: { blocked: true, reason: 'already_at_target', nextIndex, activeIndex }
+      })
       return
     }
 
     const nextDirection = safeIndex > activeIndex ? 'next' : 'prev'
+    
+    debugLog({
+      type: 'scrollToIndex_begin',
+      timestamp: performance.now(),
+      data: { 
+        blocked: false,
+        fromIndex: activeIndex, 
+        toIndex: safeIndex, 
+        direction: nextDirection,
+        wasGesturing: isGesturing,
+        gestureProgress: gestureProgressRef.current.toFixed(3)
+      }
+    })
 
     // CRITICAL: Set locks IMMEDIATELY before any state updates
     isCommittingRef.current = true
@@ -319,22 +895,40 @@ export default function HomePage() {
     stopGestureTimer()
     stopFinalizeTimer()
     
-    // CRITICAL: Set animation states BEFORE resetGesture to prevent them from being cleared
-    // This ensures the animation is visible for mouse wheel
+    // #region agent log
+    const wrapperElBefore = videoWrapperRef.current;
+    const dataGestureBefore = wrapperElBefore?.getAttribute('data-gesture') || 'N/A';
+    const dataDirectionBefore = wrapperElBefore?.getAttribute('data-direction') || 'N/A';
+    const gestureProgressVarBefore = wrapperElBefore ? getComputedStyle(wrapperElBefore).getPropertyValue('--gesture-progress') : 'N/A';
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:760',message:'scrollToIndex BEFORE setState',data:{fromIndex:activeIndex,toIndex:safeIndex,direction:nextDirection,dataGesture:dataGestureBefore,dataDirection:dataDirectionBefore,gestureProgressVar:gestureProgressVarBefore},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
+    // ATOMIC STATE UPDATE: Set all animation states together
+    // React 18+ batches these automatically within event handlers
     setFromIndex(activeIndex)
     setIncomingIndex(safeIndex)
     setDirection(nextDirection)
     setIsAnimating(true)
-    
-    // Make sure we exit gesture mode before the commit animation
     setIsGesturing(false)
-    // CRITICAL: Reset gesture progress smoothly after animation starts
-    // Use requestAnimationFrame to ensure smooth transition without visual jump
-    // This prevents "jump" when releasing fingers during slow scroll
+    // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+    const wrapper = videoWrapperRef.current
+    if (wrapper) {
+      wrapper.setAttribute('data-gesture', 'false')
+      wrapper.setAttribute('data-direction', nextDirection)
+      wrapper.style.setProperty('--gesture-progress', '0')
+    }
+    setGestureProgress(0)
+    gestureProgressRef.current = 0
+    
+    // #region agent log
     requestAnimationFrame(() => {
-      gestureProgressRef.current = 0
-      setGestureProgress(0)
-    })
+      const wrapperElAfter = videoWrapperRef.current;
+      const dataGestureAfter = wrapperElAfter?.getAttribute('data-gesture') || 'N/A';
+      const dataDirectionAfter = wrapperElAfter?.getAttribute('data-direction') || 'N/A';
+      const gestureProgressVarAfter = wrapperElAfter ? getComputedStyle(wrapperElAfter).getPropertyValue('--gesture-progress') : 'N/A';
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:770',message:'scrollToIndex AFTER setState (RAF)',data:{dataGesture:dataGestureAfter,dataDirection:dataDirectionAfter,gestureProgressVar:gestureProgressVarAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    });
+    // #endregion
     // Reset other gesture state immediately
     stopGestureTimer()
     stopFinalizeTimer()
@@ -349,26 +943,22 @@ export default function HomePage() {
     // Mark "arrival" immediately for last slide to allow footer interactions as soon as animation ends.
     lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
     
-    // Timeout should match CSS animation duration (0.3s = 300ms) + small buffer
-    const timeout = prefersReducedMotion.current ? 100 : 320
+    // Timeout should match CSS animation duration (0.55s = 550ms) + small buffer
+    const timeout = prefersReducedMotion.current ? 100 : 580
     animationTimerRef.current = window.setTimeout(() => {
-      // CRITICAL: Clear incomingIndex and direction BEFORE unlocking commit locks
-      // This prevents new gestures from starting with stale state
+      // ATOMIC STATE UPDATE: Clear all animation states together
       setIncomingIndex(null)
       setDirection(null)
       setIsAnimating(false)
-      // CRITICAL: Unlock commit locks only AFTER animation completes and state is cleared
-      // CRITICAL: Reset isCommittingRef AFTER state is cleared to prevent race conditions
-      // CRITICAL: isAnimatingRef will be reset AFTER postCommitIgnoreUntil is set (see below)
+      
+      // Unlock commit locks AFTER state is cleared
       isCommittingRef.current = false
-      // CRITICAL: Extend postCommitIgnoreUntil to absorb trackpad inertia after animation completes
-      // This prevents skipping sections when scrolling up/down due to trackpad inertia
-      // Reduced to 350ms for better responsiveness while still preventing fast scroll skipping
+      
+      // Extend postCommitIgnoreUntil to absorb trackpad inertia after animation completes
       const now = performance.now()
-      const extendedIgnoreUntil = now + 350 // 350ms to prevent skipping on fast scrolls while maintaining responsiveness
+      const extendedIgnoreUntil = now + POST_COMMIT_IGNORE_MS
       postCommitIgnoreUntilRef.current = extendedIgnoreUntil
-      // CRITICAL: Keep isAnimatingRef true until postCommitIgnoreUntil is set
-      // This prevents race conditions where new gestures start before postCommitIgnoreUntil is set
+      
       // Reset isAnimatingRef AFTER postCommitIgnoreUntil is set
       isAnimatingRef.current = false
       // CRITICAL: Keep trackpadCommitLock active until postCommitIgnoreUntil expires
@@ -378,8 +968,18 @@ export default function HomePage() {
       // Mark when we *actually* arrived at the last slide.
       lastSlideArrivedAtRef.current = safeIndex === lastSlideIndex ? performance.now() : 0
       animationTimerRef.current = null
+      
+      debugLog({
+        type: 'scrollToIndex_end',
+        timestamp: performance.now(),
+        data: { 
+          finalActiveIndex: safeIndex,
+          postCommitIgnoreUntil: postCommitIgnoreUntilRef.current,
+          trackpadCommitLock: trackpadCommitLockRef.current
+        }
+      })
     }, timeout)
-  }, [activeIndex, clampIndex, closeFooter, incomingIndex, isFooterOpen, lastSlideIndex, resetGesture, stopAnimationTimer, stopFinalizeTimer, stopGestureTimer])
+  }, [activeIndex, clampIndex, closeFooter, incomingIndex, isFooterOpen, isGesturing, lastSlideIndex, resetGesture, stopAnimationTimer, stopFinalizeTimer, stopGestureTimer])
 
   const finalizeGesture = useCallback(() => {
     const progress = gestureProgressRef.current
@@ -387,21 +987,75 @@ export default function HomePage() {
 
     // CRITICAL: Block if already committing or animation in progress
     if (isCommittingRef.current || isAnimatingRef.current) {
+      hasEnteredCommitZoneRef.current = false
       return
     }
     // CRITICAL: Block if trackpad commit lock is active (prevents double-commit on fast swipes)
     // CRITICAL: Allow commit if progress is high enough (>= 0.5) even if trackpadCommitLock is active
-    // Reduced from 0.7 to 0.5 for better responsiveness - allows commit at 50% progress
     const shouldAllowCommit = progress >= 0.5 || !trackpadCommitLockRef.current
     if (trackpadCommitLockRef.current && !shouldAllowCommit) {
+      hasEnteredCommitZoneRef.current = false
       return
     }
     if (!dir) {
+      hasEnteredCommitZoneRef.current = false
       resetGesture()
       return
     }
     
-    if (progress >= SNAP_THRESHOLD) {
+    // HYSTERESIS: Use different thresholds for entering vs staying in commit zone
+    // Once we've entered the commit zone, we need to drop below CANCEL threshold to exit
+    const effectiveThreshold = hasEnteredCommitZoneRef.current 
+      ? SNAP_THRESHOLD_CANCEL  // Already in zone, need to drop below this to cancel
+      : SNAP_THRESHOLD_COMMIT  // Not in zone yet, need to cross this to enter
+    
+    // Update commit zone tracking
+    if (progress >= SNAP_THRESHOLD_COMMIT) {
+      hasEnteredCommitZoneRef.current = true
+    } else if (progress < SNAP_THRESHOLD_CANCEL) {
+      hasEnteredCommitZoneRef.current = false
+    }
+    
+    // Trackpad: "one continuous action" — follow finger during wheel stream,
+    // then on release (idle) smoothly settle from current progress to 0/1 WITHOUT restarting keyframes.
+    if (lastGestureSourceRef.current === 'trackpad') {
+      // Footer special-case stays as before.
+      if (dir === 'next' && activeIndex === lastSlideIndex && progress >= effectiveThreshold) {
+        const canOpenFooter = !isAnimatingRef.current && lastSlideArrivedAtRef.current > 0
+        hasEnteredCommitZoneRef.current = false
+        resetGesture()
+        if (canOpenFooter) openFooter()
+        return
+      }
+
+      const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
+      if (progress >= effectiveThreshold) {
+        hasEnteredCommitZoneRef.current = false
+        finalizeTrackpadGesture(1, nextIndex)
+      } else {
+        hasEnteredCommitZoneRef.current = false
+        finalizeTrackpadGesture(0, null)
+      }
+      return
+    }
+
+    if (progress >= effectiveThreshold) {
+      debugLog({
+        type: 'threshold_cross',
+        timestamp: performance.now(),
+        data: {
+          progress: progress.toFixed(3),
+          effectiveThreshold,
+          hasEnteredCommitZone: hasEnteredCommitZoneRef.current,
+          direction: dir,
+          source: lastGestureSourceRef.current,
+          activeIndex,
+          action: 'commit'
+        }
+      })
+      
+      hasEnteredCommitZoneRef.current = false
+      
       // On the last slide, scrolling "next" opens footer overlay instead of native scroll below.
       if (dir === 'next' && activeIndex === lastSlideIndex) {
         const canOpenFooter = !isAnimatingRef.current && lastSlideArrivedAtRef.current > 0
@@ -423,7 +1077,7 @@ export default function HomePage() {
     trackpadCommitLockRef.current = true
     // Absorb inertia to prevent double scroll and false gestures after fast swipes
     // Reduced to 350ms for better responsiveness while still preventing inertia
-    postCommitIgnoreUntilRef.current = performance.now() + 350
+    postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
     // Safety: even if a device keeps emitting wheel events continuously, do not lock forever.
     trackpadCommitLockExpiresAtRef.current = performance.now() + 2000
     scheduleTrackpadUnlock()
@@ -437,6 +1091,12 @@ export default function HomePage() {
     // This prevents visual "jump" when releasing fingers during slow scroll
     // Progress will be reset in scrollToIndex after animation starts
     setIsGesturing(false)
+    // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+    const wrapper = videoWrapperRef.current
+    if (wrapper) {
+      wrapper.setAttribute('data-gesture', 'false')
+      wrapper.setAttribute('data-direction', 'idle')
+    }
       
       scrollToIndex(nextIndex)
       return
@@ -445,29 +1105,7 @@ export default function HomePage() {
     resetGesture()
   }, [activeIndex, clampIndex, incomingIndex, lastSlideIndex, openFooter, resetGesture, scheduleTrackpadUnlock, scrollToIndex])
 
-  const scheduleFinalize = useCallback((delayMs: number) => {
-    stopFinalizeTimer()
-    
-    // CRITICAL: Don't schedule if already committing or animating
-    if (isCommittingRef.current || isAnimatingRef.current) {
-      return
-    }
-
-    finalizeTimerRef.current = window.setTimeout(() => {
-      finalizeTimerRef.current = null
-      
-      // CRITICAL: Double-check before firing - might have been committed already
-      // CRITICAL: Allow commit if progress is high enough (>= 0.3) even if trackpadCommitLock is active
-      // This ensures slow scrolls can commit even with lock active
-      const progress = gestureProgressRef.current
-      const shouldAllowCommit = progress >= SNAP_THRESHOLD || !trackpadCommitLockRef.current
-      if (isCommittingRef.current || isAnimatingRef.current || (trackpadCommitLockRef.current && !shouldAllowCommit)) {
-        return
-      }
-
-      finalizeGesture()
-    }, delayMs)
-  }, [activeIndex, finalizeGesture, incomingIndex, stopFinalizeTimer])
+  // NOTE: scheduleFinalize is now inlined in handleWheel with physics engine integration
 
   const handleWheel = useCallback((event: WheelEvent) => {
     if (prefersReducedMotion.current) {
@@ -507,6 +1145,7 @@ export default function HomePage() {
     const now = performance.now()
     const wheelDt = now - (lastWheelTsRef.current || 0)
     lastWheelTsRef.current = now
+    debugWheelDtRef.current = wheelDt // Track for debug overlay
     const isLikelyTrackpad =
       event.deltaMode === 0 && (Math.abs(deltaY) < TRACKPAD_DELTA_CUTOFF || wheelDt < TRACKPAD_STREAM_CUTOFF_MS)
     const absDelta = Math.abs(deltaY)
@@ -677,14 +1316,34 @@ export default function HomePage() {
         event.preventDefault()
         closeFooter()
         setIsGesturing(false)
+        // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+        const wrapper = videoWrapperRef.current
+        if (wrapper) {
+          wrapper.setAttribute('data-gesture', 'false')
+          wrapper.setAttribute('data-direction', 'idle')
+          wrapper.style.setProperty('--gesture-progress', '0')
+        }
         return
       }
 
       // Footer closed, wheel down should open it.
+      // CRITICAL: Block footer opening if direction changed during active gesture
+      // This prevents footer from opening when user reverses scroll direction
       if (dir === 'next') {
         event.preventDefault()
         // Prevent opening while slide is still animating in.
         if (!canOpenFooter) return
+        // CRITICAL: Block footer opening if direction changed during active gesture
+        // Check if we're in the middle of a gesture and direction just changed
+        const physicsSnapshot = physics.getSnapshot()
+        const isActiveGesture = physicsSnapshot.state === 'interacting' || physicsSnapshot.state === 'coasting'
+        const directionChanged = gestureDirectionRef.current !== null && gestureDirectionRef.current !== dir
+        if (isActiveGesture && directionChanged) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1305',message:'Blocking footer open - direction changed during active gesture',data:{dir,gestureDirection:gestureDirectionRef.current,physicsState:physicsSnapshot.state,directionChanged},timestamp:Date.now(),sessionId:'debug-session',runId:'run36',hypothesisId:'AW'})}).catch(()=>{});
+          // #endregion
+          return
+        }
         // Open footer immediately for both mouse and trackpad
         openFooter()
         return
@@ -750,7 +1409,7 @@ export default function HomePage() {
       }
       
       // Set locks before calling scrollToIndex
-      postCommitIgnoreUntilRef.current = performance.now() + 350
+      postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
       
       // scrollToIndex will set all necessary states for animation
       // Use requestAnimationFrame to ensure React has time to update DOM before animation starts
@@ -760,166 +1419,337 @@ export default function HomePage() {
       return
     }
 
-    // If direction changed, restart gesture
+    // CRITICAL FIX: Ignore wheel events during snapping to prevent unnecessary physics.input() calls
+    // This reduces load and prevents issues during fast scrolling
+    const physicsSnapshot = physics.getSnapshot()
+    if (physicsSnapshot.state === 'snapping') {
+      event.preventDefault()
+      // #region agent log
+      if (Math.random() < 0.05) { // Log occasionally to avoid spam
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1372',message:'Wheel event ignored during snapping',data:{physicsState:physicsSnapshot.state,progress:physicsSnapshot.progress},timestamp:Date.now(),sessionId:'debug-session',runId:'run32',hypothesisId:'AS'})}).catch(()=>{});
+      }
+      // #endregion
+      return
+    }
+    
+    // If direction changed OR physics engine is idle, restart gesture with smooth transition
     // CRITICAL: Only restart if not already committing/animating
-    if (gestureDirectionRef.current !== dir) {
+    // CRITICAL: If direction changed during active gesture, let physics engine handle it via progress inversion
+    // Check direction change from both gestureDirectionRef and physics engine direction
+    // This handles cases where gestureDirectionRef was reset but physics engine still has direction
+    const refDirectionChanged = gestureDirectionRef.current !== dir && gestureDirectionRef.current !== null
+    const physicsDirectionChanged = physicsSnapshot.direction !== null && physicsSnapshot.direction !== dir
+    const directionChanged = refDirectionChanged || physicsDirectionChanged
+    const isActiveGesture = physicsSnapshot.state === 'interacting' || physicsSnapshot.state === 'coasting'
+    
+    // #region agent log
+    // Reduced logging frequency to improve performance - only log when direction changes or state changes
+    if (directionChanged || Math.random() < 0.01) { // Log 1% of normal events, 100% of direction changes
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1377',message:'Direction check before physics.input()',data:{refDirection:gestureDirectionRef.current,physicsDirection:physicsSnapshot.direction,newDirection:dir,refDirectionChanged,physicsDirectionChanged,directionChanged,isActiveGesture,physicsState:physicsSnapshot.state},timestamp:Date.now(),sessionId:'debug-session',runId:'run13',hypothesisId:'Z'})}).catch(()=>{});
+    }
+    // #endregion
+    
+    // If direction changed during active gesture, update ref ONLY, keep old data-direction in DOM
+    // CRITICAL: Do NOT update React state direction - keep old data-direction to preserve visual position
+    // Physics engine will invert delta sign, allowing progress to decrease naturally
+    // This creates smooth reversal effect without visual jump
+    if (directionChanged && isActiveGesture) {
+      // #region agent log
+      const wrapper = videoWrapperRef.current
+      const currentDataDirection = wrapper?.getAttribute('data-direction')
+      const currentDataGesture = wrapper?.getAttribute('data-gesture')
+      const currentGestureProgress = wrapper?.style.getPropertyValue('--gesture-progress')
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1389',message:'Direction changed during active gesture, updating ref and data-direction',data:{oldRefDirection:gestureDirectionRef.current,oldPhysicsDirection:physicsSnapshot.direction,oldReactDirection:direction,oldIncomingIndex:incomingIndex,newDirection:dir,physicsState:physicsSnapshot.state,currentDataDirection,currentDataGesture,currentGestureProgress,currentProgress:physicsSnapshot.progress},timestamp:Date.now(),sessionId:'debug-session',runId:'run29',hypothesisId:'AP'})}).catch(()=>{});
+      // #endregion
+      gestureDirectionRef.current = dir
+      // CRITICAL: Do NOT update data-direction when direction changes during active gesture
+      // Keep original direction in DOM so CSS continues using the same animation type
+      // Physics engine will invert delta sign, allowing progress to decrease naturally
+      // This creates smooth reversal effect: section moves back smoothly without changing animation type
+      // CRITICAL: Clear incomingIndex when direction changes to prevent triggering adjacent sections
+      // This prevents visual glitches where the next section appears briefly when reversing direction
+      // Especially important on last slide with footer to prevent unwanted section triggers
+      if (incomingIndex !== null) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1425',message:'Clearing incomingIndex on direction change',data:{oldIncomingIndex:incomingIndex,newDirection:dir,activeIndex,lastSlideIndex,isFooterOpen,footerProgress:footerProgressRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run35',hypothesisId:'AV'})}).catch(()=>{});
+        // #endregion
+        setIncomingIndex(null)
+      }
+      // Continue to physics.input() below - it will handle direction change smoothly
+    }
+    
+    // If direction changed during active gesture, don't reset - let physics engine invert progress
+    const shouldRestartGesture = (physicsSnapshot.state === 'idle') || (directionChanged && !isActiveGesture)
+    // #region agent log
+    // Reduced logging frequency to improve performance - only log when restarting gesture or direction changes
+    if (shouldRestartGesture || directionChanged || Math.random() < 0.01) { // Log 1% of normal events, 100% of important events
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1400',message:'Checking if new gesture should start',data:{currentDirection:gestureDirectionRef.current,newDirection:dir,isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current,physicsState:physicsSnapshot.state,directionChanged,isActiveGesture,shouldRestartGesture},timestamp:Date.now(),sessionId:'debug-session',runId:'run13',hypothesisId:'W'})}).catch(()=>{});
+    }
+    // #endregion
+    if (shouldRestartGesture) {
       // Block if already committing or animating
       if (isCommittingRef.current || isAnimatingRef.current) {
-        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1293',message:'BLOCKED: already committing/animating',data:{isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         return
       }
       
       // CRITICAL: Block new gesture if we're still in the post-commit ignore window
-      // This prevents inertia from creating false gestures after animation completes
-      // CRITICAL: Use isAnimatingRef instead of incomingIndex because incomingIndex is reset asynchronously
-      // CRITICAL: Also check if isCommittingRef is still active
       const postCommitIgnoreUntil = postCommitIgnoreUntilRef.current || 0
       const nowTime = performance.now()
+      const wrapperEl = videoWrapperRef.current
       if (nowTime < postCommitIgnoreUntil || isCommittingRef.current || isAnimatingRef.current) {
-        return
-      }
-      
-      // CRITICAL: Block new gesture if we're still animating or committing
-      // This prevents skipping sections and double activations
-      if (isAnimatingRef.current || isCommittingRef.current) {
-        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1301',message:'BLOCKED: post-commit ignore window',data:{nowTime,postCommitIgnoreUntil,remaining:postCommitIgnoreUntil-nowTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         return
       }
       
       // CRITICAL: Clear trackpadCommitLock if postCommitIgnoreUntil has expired
-      // This allows new gestures to commit even if the lock is still active from previous animation
       if (trackpadCommitLockRef.current && nowTime >= postCommitIgnoreUntil) {
         trackpadCommitLockRef.current = false
         stopTrackpadUnlockTimer()
       }
       
+      // Start new gesture with physics engine
+      debugLog({
+        type: 'wheel_start',
+        timestamp: nowTime,
+        data: {
+          source: 'trackpad',
+          direction: dir,
+          wheelDt,
+          deltaY: deltaY.toFixed(1),
+          activeIndex,
+          isLikelyTrackpad: true
+        }
+      })
+      
+
+      // ATOMIC STATE UPDATE: Start gesture with all state in sync
       gestureDirectionRef.current = dir
       gestureProgressRef.current = 0
+      
+      // CRITICAL: Reset data-gesture and CSS var BEFORE physics.reset() to prevent stale state
+      // This ensures physics engine starts from clean state
+      const wrapperForReset = videoWrapperRef.current
+      if (wrapperForReset) {
+        wrapperForReset.setAttribute('data-gesture', 'false')
+        wrapperForReset.setAttribute('data-direction', 'idle')
+        wrapperForReset.style.setProperty('--gesture-progress', '0')
+      }
+      
+      // Reset physics engine for new gesture BEFORE setting React state
+      // This ensures physics engine starts from clean state
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1340',message:'Calling physics.reset() before starting new gesture',data:{direction:dir,physicsStateBefore:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      physics.reset()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1342',message:'physics.reset() completed',data:{physicsStateAfter:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      
+      // CRITICAL: Set DOM attributes BEFORE setIsGesturing to ensure they are set synchronously
+      // This prevents race conditions where React state updates async but DOM attributes are set sync
+      // CRITICAL: Store original direction in ref to preserve it during direction changes
+      const wrapper = videoWrapperRef.current
+      if (wrapper) {
+        wrapper.setAttribute('data-gesture', 'true')
+        wrapper.setAttribute('data-direction', dir)
+        // Store original direction to preserve it during direction changes
+        gestureDirectionRef.current = dir
+      }
+      
+      // Now set React state (this will trigger async update, but DOM attributes are already set)
       setIsGesturing(true)
+      // Log after setting state
+      if (wrapper) {
+      }
+      lastGestureSourceRef.current = 'trackpad'
+      usePhysicsEngineRef.current = true
       setFromIndex(activeIndex)
-      // CRITICAL: Don't set incomingIndex immediately - wait until gesture reaches minimum progress (5%)
-      // This prevents showing the next section during very small gestures that might be cancelled
-      // incomingIndex will be set when gestureProgress reaches 0.05 in the progress update logic
       setDirection(dir)
       setIsAnimating(false)
       setGestureProgress(0)
+      setIncomingIndex(null)
+      
     }
 
     stopGestureTimer()
-    stopFinalizeTimer()
+    // CRITICAL: Do NOT call stopFinalizeTimer() here - it should only be cleared when gesture ends
+    // Calling it here causes the timer to be recreated on every wheel event, defeating the optimization
+    // stopFinalizeTimer() is called in finalizeTrackpadGesture, resetGesture, and other cleanup functions
 
-    // PERF: reduce wheelRange for higher sensitivity and smoother slow scrolling
-    // Smaller range = faster progress accumulation = easier to flip pages with slow scroll
-    // Optimized for smooth, mobile-like scrolling experience with better sensitivity
-    const wheelRange = isLikelyTrackpad
-      ? Math.min(240, Math.max(80, window.innerHeight * 0.3))
-      : MOUSE_WHEEL_RANGE
-    const prevProgress = gestureProgressRef.current
-    const nextProgress = Math.min(1, prevProgress + absDeltaClamped / wheelRange)
-    gestureProgressRef.current = nextProgress
+    // ===== PHYSICS ENGINE: dt-based input =====
+    // Calculate delta in progress units (0..1)
+    const wheelRange = calculateWheelRange('trackpad', window.innerHeight)
+    const progressDelta = absDeltaClamped / wheelRange
     
-    // Set incomingIndex earlier (5%) for smoother, more responsive slow scrolling
-    // This provides better visual feedback during slow gestures
-    if (nextProgress >= 0.05 && !incomingIndex && gestureDirectionRef.current) {
-      const nextTargetIndex = clampIndex(activeIndex + (gestureDirectionRef.current === 'next' ? 1 : -1))
-      if (nextTargetIndex !== activeIndex) {
-        setIncomingIndex(nextTargetIndex)
+    // CRITICAL FIX: Throttle physics.input() to prevent overload during fast scrolling
+    // Accumulate delta if throttling is active, then apply accumulated delta when throttle expires
+    // CRITICAL: Use adaptive throttling - more aggressive for fast scroll (large delta), less for slow scroll
+    const timeSinceLastInput = now - lastPhysicsInputTsRef.current
+    const isFastScroll = progressDelta > 0.01 // Large delta indicates fast scroll
+    const adaptiveThrottle = isFastScroll ? PHYSICS_INPUT_THROTTLE_MS * 1.5 : PHYSICS_INPUT_THROTTLE_MS
+    const shouldThrottle = timeSinceLastInput < adaptiveThrottle && lastPhysicsInputTsRef.current > 0
+    
+    if (shouldThrottle) {
+      // Accumulate delta for later processing - will be applied on next non-throttled event
+      accumulatedDeltaRef.current += progressDelta
+      accumulatedDeltaDirRef.current = dir
+      // #region agent log
+      if (Math.random() < 0.1) { // Log occasionally to avoid spam
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1508',message:'physics.input() throttled, accumulating delta',data:{progressDelta,accumulatedDelta:accumulatedDeltaRef.current,timeSinceLastInput,dir,isFastScroll,adaptiveThrottle},timestamp:Date.now(),sessionId:'debug-session',runId:'run31',hypothesisId:'AR'})}).catch(()=>{});
       }
-    }
-    
-    // PERF: Calculate velocity for fast swipe detection (px/ms)
-    // Keep last 5 deltas within 100ms window
-    const velocityWindow = 100
-    velocityDeltasRef.current.push({ delta: absDeltaClamped, ts: now })
-    velocityDeltasRef.current = velocityDeltasRef.current.filter(
-      (d) => now - d.ts < velocityWindow
-    )
-    const totalDelta = velocityDeltasRef.current.reduce((sum, d) => sum + d.delta, 0)
-    const timeSpan = velocityDeltasRef.current.length > 1
-      ? now - velocityDeltasRef.current[0].ts
-      : 16 // assume 1 frame if single event
-    const velocity = timeSpan > 0 ? totalDelta / timeSpan : 0
-    
-    // PERF: use throttled updates for trackpad to reduce re-renders, immediate for mouse
-    if (isLikelyTrackpad) {
-      publishGestureProgressThrottled()
-    } else {
-      publishGestureProgressImmediate()
-    }
-
-    // Trackpad: for FAST swipes (high velocity), commit immediately when threshold crossed
-    // This prevents the "double scroll" feeling on quick gestures
-    // CRITICAL: Only commit if progress >= SNAP_THRESHOLD to avoid premature commits
-    const VELOCITY_FAST_THRESHOLD = 1.2 // px/ms - reduced for more responsive scrolling
-    if (isLikelyTrackpad) {
-      // CRITICAL: Fast swipe commit only if progress is already at threshold
-      // This prevents premature commits that cause flickering
-      // Use gestureProgressRef.current for accurate progress check
-      const currentProgress = gestureProgressRef.current
-      
-      // Fast swipes: commit immediately at SNAP_THRESHOLD (30%)
-      if (velocity >= VELOCITY_FAST_THRESHOLD && currentProgress >= SNAP_THRESHOLD) {
-        // CRITICAL: Block if already committing or animating
-        // CRITICAL: Allow commit if progress is high enough (>= 0.5) even if trackpadCommitLock is active
-        // Reduced threshold from 0.7 to 0.5 for better responsiveness
-        const shouldAllowCommit = currentProgress >= 0.5 || !trackpadCommitLockRef.current
-        if (isCommittingRef.current || isAnimatingRef.current || !shouldAllowCommit) {
-          return
-        }
-
-        // CRITICAL: Stop ALL timers BEFORE finalizeGesture
-        // DO NOT set locks here - let finalizeGesture set them to avoid blocking itself
-        stopFinalizeTimer()
-        stopGestureTimer()
-        // Immediate commit for fast swipes - finalizeGesture will set the locks
-        finalizeGesture()
+      // #endregion
+      // CRITICAL: If accumulated delta is large, apply it immediately to prevent lag
+      // This ensures fast scrolls are processed quickly even with throttling
+      if (accumulatedDeltaRef.current > 0.05) {
+        // Large accumulated delta - apply immediately to prevent lag
+        const totalDelta = accumulatedDeltaRef.current
+        const finalDir = accumulatedDeltaDirRef.current || dir
+        accumulatedDeltaRef.current = 0
+        accumulatedDeltaDirRef.current = null
+        lastPhysicsInputTsRef.current = now
+        // Apply accumulated delta
+        physics.input(totalDelta, finalDir, 'trackpad')
         return
       }
+      // Don't call physics.input() - just accumulate and return
+      return
+    } else {
+      // Apply accumulated delta if any, then apply current delta
+      const hadAccumulated = accumulatedDeltaRef.current !== 0
+      const totalDelta = accumulatedDeltaRef.current + progressDelta
+      const finalDir = accumulatedDeltaDirRef.current || dir
+      accumulatedDeltaRef.current = 0
+      accumulatedDeltaDirRef.current = null
+      lastPhysicsInputTsRef.current = now
       
-      // For slower gestures, wait for idle before committing
-      // Further reduced delay for faster response on slow scrolls
-      // Use shorter delay for better responsiveness, especially for slow downward scrolls
-      // CRITICAL: If progress is at or near 100%, commit immediately instead of waiting
-      if (currentProgress >= 0.95) {
-        // Immediate commit for near-100% progress
-        if (!isCommittingRef.current && !isAnimatingRef.current) {
-          stopFinalizeTimer()
-          stopGestureTimer()
-          finalizeGesture()
+      // Feed input to physics engine
+      // #region agent log
+      // Reduced logging frequency to improve performance
+      if (Math.random() < 0.05) { // Log only 5% of calls
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1374',message:'Calling physics.input()',data:{progressDelta:totalDelta,dir:finalDir,physicsState:physics.getSnapshot().state,gestureDirection:gestureDirectionRef.current,hadAccumulated},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+      }
+      // #endregion
+      physics.input(totalDelta, finalDir, 'trackpad')
+      // #region agent log
+      // Reduced logging frequency to improve performance
+      if (Math.random() < 0.05) { // Log only 5% of calls
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1376',message:'physics.input() completed',data:{physicsStateAfter:physics.getSnapshot().state},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+      }
+      // #endregion
+    }
+    
+    // Sync local refs with physics state for compatibility
+    const snapshot = physics.getSnapshot()
+    // Keep raw progress for logic; visuals are driven by CSS var from the physics hook.
+    gestureProgressRef.current = snapshot.progress
+    // NOTE: Do NOT call setGestureProgress here - physics hook updates CSS var directly
+    // React state updates cause re-renders which lag trackpad gestures
+    
+    // Set incomingIndex at 20% progress for visual feedback (increased from 5% to reduce artifacts)
+    // CRITICAL: Only update if value actually changes to prevent unnecessary re-renders
+    // CRITICAL: Also check that physics direction matches gestureDirectionRef to prevent card swapping on direction change
+    if (snapshot.progress >= 0.20 && gestureDirectionRef.current && !isAnimatingRef.current) {
+      const physicsDirection = snapshot.direction
+      // Only set incomingIndex if physics direction matches gestureDirectionRef
+      // This prevents card swapping when direction changes during gesture
+      if (physicsDirection === gestureDirectionRef.current) {
+        const nextTargetIndex = clampIndex(activeIndex + (gestureDirectionRef.current === 'next' ? 1 : -1))
+        if (nextTargetIndex !== activeIndex && nextTargetIndex !== incomingIndex) {
+          // #region agent log
+          // Reduced logging frequency to improve performance
+          if (Math.random() < 0.1) { // Log only 10% of calls
+            fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1274',message:'setIncomingIndex called during gesture',data:{progress:snapshot.progress,nextTargetIndex,currentIncomingIndex:incomingIndex,physicsDirection,gestureDirection:gestureDirectionRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          }
+          // #endregion
+          setIncomingIndex(nextTargetIndex)
+        }
+      } else if (incomingIndex !== null) {
+        // If directions don't match, clear incomingIndex to prevent card swapping
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1285',message:'Clearing incomingIndex - directions mismatch',data:{progress:snapshot.progress,currentIncomingIndex:incomingIndex,physicsDirection,gestureDirection:gestureDirectionRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        setIncomingIndex(null)
+      }
+    }
+    
+    // Legacy velocity tracking (for compatibility with touch/footer)
+    addVelocitySample(snapshot.progress)
+
+    // Trackpad: release on stream idle (physics engine handles coast/snap)
+    if (isLikelyTrackpad) {
+      // CRITICAL: Reset timer on every wheel event to prevent premature release while user is still scrolling
+      // This ensures the timer only fires when user actually stops scrolling
+      stopFinalizeTimer()
+      
+      // #region agent log
+      // Reduced logging frequency to improve performance
+      if (Math.random() < 0.1) { // Log only 10% of calls
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1499',message:'Setting finalize timer for trackpad',data:{physicsState:physics.getSnapshot().state,gestureProgress:gestureProgressRef.current,isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'M'})}).catch(()=>{});
+      }
+      // #endregion
+      finalizeTimerRef.current = window.setTimeout(() => {
+        finalizeTimerRef.current = null
+        
+        const currentPhysicsState = physics.getSnapshot().state
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1503',message:'Finalize timer fired',data:{physicsState:currentPhysicsState,gestureProgress:gestureProgressRef.current,isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'O'})}).catch(()=>{});
+        // #endregion
+        
+        if (isCommittingRef.current || isAnimatingRef.current) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1516',message:'Finalize timer skipped - committing or animating',data:{isCommitting:isCommittingRef.current,isAnimating:isAnimatingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'O'})}).catch(()=>{});
+          // #endregion
           return
         }
-      }
-      
-      // CRITICAL: Auto-commit at 40% progress for slow scrolls to complete animation smoothly
-      // This provides better UX - animation completes automatically when user reaches 40%
-      if (currentProgress >= 0.4 && velocity < VELOCITY_FAST_THRESHOLD) {
-        // Auto-commit for slow scrolls at 40% - animation will complete smoothly
-        if (!isCommittingRef.current && !isAnimatingRef.current) {
-          stopFinalizeTimer()
-          stopGestureTimer()
-          finalizeGesture()
+
+        // CRITICAL: Don't call release() if physics engine is already snapping or coasting
+        // Snap/coast animation will complete naturally and trigger onCommit callback
+        if (currentPhysicsState === 'snapping' || currentPhysicsState === 'coasting') {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1522',message:'Finalize timer skipped - physics already snapping/coasting',data:{physicsState:currentPhysicsState},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'O'})}).catch(()=>{});
+          // #endregion
           return
         }
-      }
-      
-      scheduleFinalize(TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
+        
+        // CRITICAL: Only call release() if physics engine is still in 'interacting' state
+        // If state changed (e.g., to 'idle' or 'snapping'), don't call release() to avoid double commits
+        if (currentPhysicsState !== 'interacting') {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1528',message:'Finalize timer skipped - physics state not interacting',data:{physicsState:currentPhysicsState},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'O'})}).catch(()=>{});
+          // #endregion
+          return
+        }
+
+        // IMPORTANT: Do NOT call scrollToIndex() here.
+        // Let the physics engine coast/snap, then commit via physicsCommitHandler (finalizeTrackpadGesture),
+        // otherwise you get a second movement pulse from CSS keyframes.
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1530',message:'Calling physics.release() from timer',data:{physicsState:currentPhysicsState,gestureProgress:gestureProgressRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'O'})}).catch(()=>{});
+        // #endregion
+        physics.release()
+      }, TRACKPAD_GESTURE_IDLE_FINALIZE_MS)
       return
     }
 
-    // Mouse wheel: keep the older snappy behavior
-    if (nextProgress >= SNAP_THRESHOLD) {
-      // CRITICAL: Block if already committing or animating
+    // Mouse wheel: keep the older snappy behavior (instant commit at threshold)
+    const mouseProgress = gestureProgressRef.current
+    if (mouseProgress >= SNAP_THRESHOLD) {
       if (isCommittingRef.current || isAnimatingRef.current || trackpadCommitLockRef.current) {
         return
       }
       
       gestureLockedRef.current = true
-      // Set locks before finalizeGesture
       isCommittingRef.current = true
       trackpadCommitLockRef.current = true
-      postCommitIgnoreUntilRef.current = performance.now() + 350
+      postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
       trackpadCommitLockExpiresAtRef.current = performance.now() + 1200
       scheduleTrackpadUnlock()
+      physics.reset()
       finalizeGesture()
       return
     }
@@ -927,17 +1757,18 @@ export default function HomePage() {
     scheduleGestureReset(WHEEL_GESTURE_IDLE_RESET_MS)
   }, [
     activeIndex,
+    addVelocitySample,
     clampIndex,
     closeFooter,
     finalizeGesture,
+    incomingIndex,
     isFooterOpen,
     lastSlideIndex,
     openFooter,
-    publishGestureProgressImmediate,
-    publishGestureProgressThrottled,
+    physics,
     resetGesture,
-    scheduleFinalize,
     scheduleGestureReset,
+    scheduleTrackpadUnlock,
     scrollToIndex,
     setFooterProgressSafe,
     stopFinalizeTimer,
@@ -949,12 +1780,25 @@ export default function HomePage() {
     if (prefersReducedMotion.current) return
     if (document.body.classList.contains('dropdown-scroll-lock')) return
     if (isAnimatingRef.current) return
+    
+    // Stop any ongoing momentum animation and reset physics engine
+    stopMomentumAnimation()
+    physics.reset()
+    
     gestureLockedRef.current = false
     touchStartY.current = event.touches[0]?.clientY ?? 0
     // CRITICAL: Store the target element where touch started
     touchStartTargetRef.current = event.target as HTMLElement
+    
+    // Initialize touch velocity tracking
+    const now = performance.now()
+    touchVelocitySamplesRef.current = [{ y: touchStartY.current, ts: now }]
+    clearVelocitySamples()
+    lastGestureSourceRef.current = 'touch'
+    usePhysicsEngineRef.current = true
+    
     resetGesture()
-  }, [prefersReducedMotion, resetGesture])
+  }, [clearVelocitySamples, physics, prefersReducedMotion, resetGesture, stopMomentumAnimation])
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
     if (prefersReducedMotion.current) return
@@ -1034,48 +1878,77 @@ export default function HomePage() {
     event.preventDefault()
 
     if (gestureDirectionRef.current !== dir) {
+      // ATOMIC STATE UPDATE: Start touch gesture with all state in sync
       gestureDirectionRef.current = dir
       setIsGesturing(true)
+      // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+      const wrapper = videoWrapperRef.current
+      if (wrapper) {
+        wrapper.setAttribute('data-gesture', 'true')
+        wrapper.setAttribute('data-direction', dir)
+      }
       setFromIndex(activeIndex)
-      setIncomingIndex(clampIndex(activeIndex + (dir === 'next' ? 1 : -1)))
       setDirection(dir)
       setIsAnimating(false)
+      setIncomingIndex(null)
+      lastGestureSourceRef.current = 'touch'
+      physics.reset()
     }
 
-    const range = Math.min(780, Math.max(300, window.innerHeight * 0.72))
-    const nextProgress = Math.min(1, Math.abs(diff) / range)
-    gestureProgressRef.current = nextProgress
-    // CRITICAL: Set incomingIndex only when gesture reaches minimum progress (5%)
-    // This prevents showing the next section during very small gestures that might be cancelled
-    if (nextProgress >= 0.05 && !incomingIndex) {
+    // ===== PHYSICS ENGINE: Touch input =====
+    const range = calculateWheelRange('touch', window.innerHeight)
+    const progressDelta = Math.abs(diff) / range - gestureProgressRef.current
+    
+    // Feed input to physics engine
+    if (progressDelta > 0) {
+      physics.input(progressDelta, dir, 'touch')
+    }
+    
+    // Sync local refs with physics state
+    const snapshot = physics.getSnapshot()
+    // Keep raw progress for logic; visuals are driven by CSS var from the physics hook.
+    gestureProgressRef.current = snapshot.progress
+    // NOTE: Do NOT call setGestureProgress here - physics hook updates CSS var directly
+    
+    // Track touch velocity for legacy momentum (footer)
+    const now = performance.now()
+    touchVelocitySamplesRef.current.push({ y, ts: now })
+    if (touchVelocitySamplesRef.current.length > MAX_VELOCITY_SAMPLES) {
+      touchVelocitySamplesRef.current = touchVelocitySamplesRef.current.slice(-MAX_VELOCITY_SAMPLES)
+    }
+    addVelocitySample(snapshot.progress)
+    
+    // Set incomingIndex at 5% progress for visual feedback
+    if (snapshot.progress >= 0.05 && !incomingIndex && gestureDirectionRef.current) {
       const nextTargetIndex = clampIndex(activeIndex + (gestureDirectionRef.current === 'next' ? 1 : -1))
       if (nextTargetIndex !== activeIndex) {
         setIncomingIndex(nextTargetIndex)
-        
       }
     }
-    // Touch should feel "1:1" — update immediately (no RAF batching).
-    publishGestureProgressImmediate()
   }, [
+    addVelocitySample,
     activeIndex,
     clampIndex,
+    incomingIndex,
     isFooterOpen,
     lastSlideIndex,
-    publishGestureProgressImmediate,
+    physics,
     resetGesture,
     setFooterProgressSafe,
+    stopGestureTimer,
   ])
 
   const handleTouchEnd = useCallback(() => {
     if (prefersReducedMotion.current) return
     if (isAnimatingRef.current) return
+    
     // CRITICAL: Stop any pending timers when touch ends
     stopGestureTimer()
     stopFinalizeTimer()
-    // Touch: commit/rollback only on release
     gestureLockedRef.current = false
+    
+    // Footer handling on last slide (uses legacy logic for now)
     if (activeIndex === lastSlideIndex) {
-      // Commit footer drawer state on release
       if (!isFooterOpen) {
         if (footerProgressRef.current >= SNAP_THRESHOLD) openFooter()
         else closeFooter()
@@ -1084,17 +1957,50 @@ export default function HomePage() {
         else openFooter()
       }
       setIsGesturing(false)
+      // CRITICAL: Sync data-gesture synchronously (not via useEffect) to prevent race condition
+      const wrapper = videoWrapperRef.current
+      if (wrapper) {
+        wrapper.setAttribute('data-gesture', 'false')
+        wrapper.setAttribute('data-direction', 'idle')
+        wrapper.style.setProperty('--gesture-progress', '0')
+      }
+      physics.reset()
       resetGesture()
+      clearVelocitySamples()
       return
     }
-    // CRITICAL: Only finalize if there's actual gesture progress
+    
+    // ===== PHYSICS ENGINE: Touch release =====
     if (gestureProgressRef.current > 0 && gestureDirectionRef.current) {
-      finalizeGesture()
+      const snapshot = physics.getSnapshot()
+      const progress = snapshot.progress
+      const dir = gestureDirectionRef.current
+      
+      // Check if we should commit based on progress threshold
+      if (progress >= SNAP_THRESHOLD) {
+        // Commit - calculate next index and scroll
+        isCommittingRef.current = true
+        trackpadCommitLockRef.current = true
+        postCommitIgnoreUntilRef.current = performance.now() + POST_COMMIT_IGNORE_MS
+        scheduleTrackpadUnlock()
+        
+        const nextIndex = clampIndex(activeIndex + (dir === 'next' ? 1 : -1))
+        if (nextIndex !== activeIndex) {
+          physics.reset()
+          scrollToIndex(nextIndex)
+        } else {
+          physics.release()
+        }
+      } else {
+        // Rollback - physics engine handles spring animation
+        physics.release()
+      }
     } else {
-      // If no progress, just reset
+      physics.reset()
       resetGesture()
     }
-  }, [activeIndex, closeFooter, finalizeGesture, isFooterOpen, lastSlideIndex, openFooter, resetGesture, stopFinalizeTimer, stopGestureTimer])
+    clearVelocitySamples()
+  }, [activeIndex, clampIndex, clearVelocitySamples, closeFooter, isFooterOpen, lastSlideIndex, openFooter, physics, resetGesture, scheduleTrackpadUnlock, scrollToIndex, stopFinalizeTimer, stopGestureTimer])
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (document.body.classList.contains('dropdown-scroll-lock')) return
@@ -1159,8 +2065,9 @@ export default function HomePage() {
       stopGestureTimer()
       stopFinalizeTimer()
       stopTrackpadUnlockTimer()
+      stopMomentumAnimation()
     }
-  }, [stopAnimationTimer, stopFinalizeTimer, stopGestureTimer, stopTrackpadUnlockTimer])
+  }, [stopAnimationTimer, stopFinalizeTimer, stopGestureTimer, stopMomentumAnimation, stopTrackpadUnlockTimer])
 
   // Preload video metadata using link rel="preload" (more efficient than hidden DOM elements)
   useEffect(() => {
@@ -1273,9 +2180,116 @@ export default function HomePage() {
 
   // Caption/gesture diagnostics: on trackpad gestures captions are forced hidden while data-gesture=true.
   // We log only when gesture/direction toggles (not on every progress update).
+  // Also runs invariant checks in debug mode.
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:1957',message:'useEffect triggered by state change',data:{activeIndex,fromIndex,direction,incomingIndex,isGesturing,isAnimating,gestureProgress,lastSlideIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'L'})}).catch(()=>{});
+    // #endregion
+    checkDeckInvariants({
+      activeIndex,
+      fromIndex,
+      incomingIndex,
+      direction,
+      isAnimating,
+      isGesturing,
+      gestureProgress,
+      lastSlideIndex,
+    })
     
-  }, [activeIndex, direction, incomingIndex, isGesturing, gestureProgress])
+    // Log mode changes
+    debugLog({
+      type: 'mode_change',
+      timestamp: performance.now(),
+      data: {
+        activeIndex,
+        fromIndex,
+        incomingIndex,
+        direction,
+        isAnimating,
+        isGesturing,
+        gestureProgress: gestureProgress.toFixed(3),
+      }
+    })
+    
+    // CRITICAL: Clear data-gesture and --gesture-progress after all state updates complete
+    // This ensures sections have correct data-state before we clear gesture attributes
+    // This prevents dark screen flashes when sections have data-state="next"/"prev" but data-gesture="false"
+    if (!isGesturing && !direction && !incomingIndex) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2016',message:'useEffect: condition met for clearing data-gesture',data:{activeIndex,fromIndex,direction,incomingIndex,isGesturing},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'R'})}).catch(()=>{});
+      // #endregion
+      // Use double RAF to ensure React has updated all DOM attributes
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const wrapper = videoWrapperRef.current
+          if (wrapper) {
+            const currentDataGesture = wrapper.getAttribute('data-gesture')
+            const physicsSnapshot = physics.getSnapshot()
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2024',message:'useEffect: checking data-gesture value',data:{currentDataGesture,activeIndex,fromIndex,direction,incomingIndex,isGesturing,physicsState:physicsSnapshot.state},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'R'})}).catch(()=>{});
+            // #endregion
+            // Only clear if still set to 'true' (not already cleared)
+            // CRITICAL: Don't clear data-direction during snapping to prevent animation type change
+            // Keep original direction until snap animation completes
+            if (currentDataGesture === 'true') {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2028',message:'Clearing data-gesture in useEffect after state updates',data:{activeIndex,fromIndex,direction,incomingIndex,isGesturing,physicsState:physicsSnapshot.state},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'R'})}).catch(()=>{});
+              // #endregion
+              wrapper.setAttribute('data-gesture', 'false')
+              // CRITICAL: Only set data-direction to 'idle' if physics engine is truly idle
+              // During snapping, keep original direction to prevent animation type change
+              if (physicsSnapshot.state === 'idle') {
+                wrapper.setAttribute('data-direction', 'idle')
+              }
+              // Only clear progress if physics engine is idle
+              if (physicsSnapshot.state === 'idle') {
+                wrapper.style.setProperty('--gesture-progress', '0')
+              }
+            } else {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2034',message:'useEffect: data-gesture already cleared, skipping',data:{currentDataGesture,activeIndex,fromIndex,direction,incomingIndex,isGesturing},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'R'})}).catch(()=>{});
+              // #endregion
+            }
+          }
+        })
+      })
+    } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2040',message:'useEffect: condition NOT met for clearing data-gesture',data:{activeIndex,fromIndex,direction,incomingIndex,isGesturing},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'R'})}).catch(()=>{});
+      // #endregion
+    }
+    
+    // #region agent log
+    requestAnimationFrame(() => {
+      const wrapperEl = videoWrapperRef.current;
+      if (wrapperEl) {
+        const dataGesture = wrapperEl.getAttribute('data-gesture') || 'N/A';
+        const dataDirection = wrapperEl.getAttribute('data-direction') || 'N/A';
+        const gestureProgressVar = getComputedStyle(wrapperEl).getPropertyValue('--gesture-progress');
+        const sections = wrapperEl.querySelectorAll('.videoSection');
+        const sectionStyles: Record<string, any> = {};
+        sections.forEach((section, idx) => {
+          const el = section as HTMLElement;
+          const computed = getComputedStyle(el);
+          const dataState = el.getAttribute('data-state') || 'N/A';
+          sectionStyles[`section_${idx}`] = {
+            dataState,
+            opacity: computed.opacity,
+            visibility: computed.visibility,
+            transform: computed.transform,
+            zIndex: computed.zIndex,
+          };
+        });
+        fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:2005',message:'CSS computed styles after state change',data:{isGesturing,isAnimating,direction,dataGesture,dataDirection,gestureProgressVar,sectionStyles},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'L'})}).catch(()=>{});
+      }
+    });
+    // #endregion
+  }, [activeIndex, fromIndex, direction, incomingIndex, isGesturing, isAnimating, gestureProgress, lastSlideIndex])
+
+  // NOTE: data-gesture and data-direction are now synced synchronously in event handlers
+  // (setIsGesturing, finalizeTrackpadGesture, resetGesture, etc.)
+  // This useEffect is removed to prevent race conditions where async React state updates
+  // conflict with synchronous physics engine operations
 
   // Hash-based navigation (/#catalog, /#shop, etc.)
   useEffect(() => {
@@ -1325,6 +2339,8 @@ export default function HomePage() {
         className={styles.videoSectionsWrapper}
         data-direction={direction || 'idle'}
         data-gesture={isGesturing ? 'true' : 'false'}
+        data-animating={isAnimating ? 'true' : 'false'}
+        data-mode={deckMode}
         style={{ ['--gesture-progress' as string]: String(gestureProgress) }}
       >
         {videoSections.map((section, index) => {
@@ -1373,6 +2389,25 @@ export default function HomePage() {
       >
         <Footer />
       </div>
+
+      {/* Debug Overlay */}
+      {debugMode && (
+        <DebugOverlay
+          activeIndex={activeIndex}
+          fromIndex={fromIndex}
+          incomingIndex={incomingIndex}
+          direction={direction}
+          isAnimating={isAnimating}
+          isGesturing={isGesturing}
+          gestureProgress={gestureProgress}
+          footerProgress={footerProgress}
+          isFooterOpen={isFooterOpen}
+          trackpadCommitLock={trackpadCommitLockRef.current}
+          postCommitIgnoreUntil={postCommitIgnoreUntilRef.current}
+          lastWheelDt={debugWheelDtRef.current}
+          gestureSource={lastGestureSourceRef.current}
+        />
+      )}
 
     </motion.div>
   )

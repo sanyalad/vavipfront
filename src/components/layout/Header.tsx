@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/hooks/useAuth'
 import { useCartStore } from '@/store/cartStore'
 import { useScroll } from '@/hooks/useScroll'
@@ -18,25 +19,29 @@ const menuItems = [
 ]
 
 export default function Header() {
+  const location = useLocation()
   const { isAuthenticated } = useAuth()
   const { totalItems } = useCartStore()
   const { openAuthDrawer, addToast, openSearch } = useUIStore()
   const { direction, scrollY } = useScroll()
- const [isHidden, setIsHidden] = useState(false)
+  const [isHidden, setIsHidden] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isNavRevealed, setIsNavRevealed] = useState(false)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const location = useLocation();
   const lastScrollY = useRef(0)
   const hoverTimerRef = useRef<number | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
-  const headerTopRef = useRef<HTMLDivElement | null>(null)
   const dropdownPanelRef = useRef<HTMLDivElement | null>(null)
   const scrollLockYRef = useRef(0)
-  const lastKnownYPos = useRef<number | null>(null);
-  const isMouseInHeaderTopRef = useRef(false);
   const body = typeof document !== 'undefined' ? document.body : null
+  
+  // Check if we're on contacts page
+  const isContactsPage = location.pathname === '/contacts'
+  // Check if we're on cart or checkout page (reduced header)
+  const isReducedHeaderPage = location.pathname === '/cart' || location.pathname === '/checkout'
+  const revealTimerRef = useRef<number | null>(null)
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -115,15 +120,50 @@ export default function Header() {
     [copyPhone, phoneHref],
   )
 
-  // Hide header on scroll down
+  const stopRevealTimer = useCallback(() => {
+    if (revealTimerRef.current) {
+      window.clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = null
+    }
+  }, [])
+
+  // Contacts page: keep top header (logo + top row) always visible.
+  // Only reveal the *nav area* on hover.
   useEffect(() => {
+    if (!isContactsPage) return
+    setIsHidden(false)
+    // Keep nav revealed while dropdown is open.
+    setIsNavRevealed(!!activeMenu || isNavRevealed)
+    return
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isContactsPage, isHovered, activeMenu])
+
+  // Other pages: hide header on scroll down
+  useEffect(() => {
+    if (isContactsPage) return
     if (scrollY > 100 && direction === 'down' && !isHovered && !activeMenu) {
       setIsHidden(true)
     } else if (direction === 'up' || scrollY < 100 || isHovered || activeMenu) {
       setIsHidden(false)
     }
     lastScrollY.current = scrollY
-  }, [scrollY, direction, isHovered, activeMenu])
+  }, [scrollY, direction, isHovered, activeMenu, isContactsPage])
+
+  const revealHeader = useCallback(() => {
+    stopRevealTimer()
+    setIsHovered(true)
+    if (isContactsPage) setIsNavRevealed(true)
+  }, [stopRevealTimer])
+
+  const scheduleHideHeader = useCallback(() => {
+    stopRevealTimer()
+    // Small delay prevents flicker when moving from the reveal zone into the header.
+    revealTimerRef.current = window.setTimeout(() => {
+      setIsHovered(false)
+      if (isContactsPage && !activeMenu) setIsNavRevealed(false)
+      revealTimerRef.current = null
+    }, 120)
+  }, [stopRevealTimer, isContactsPage, activeMenu])
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current) {
@@ -226,71 +266,54 @@ export default function Header() {
   useEffect(() => {
     const updateHeaderHeight = () => {
       const headerEl = headerRef.current
-      const h = headerEl?.offsetHeight || 0
-      document.documentElement.style.setProperty('--header-h', h + 'px')
+      if (headerEl) {
+        // When on cart or checkout page, only calculate the height of the visible part (headerTop)
+        let h = 0
+        if (isReducedHeaderPage) {
+          // Calculate only the height of the top row when on cart/checkout page
+          const headerTopEl = headerEl.querySelector(`.${styles.headerTop}`) as HTMLElement | null
+          h = headerTopEl ? headerTopEl.offsetHeight + 8 : 0 // +8 for margin-bottom
+        } else {
+          h = headerEl.offsetHeight
+        }
+        document.documentElement.style.setProperty('--header-h', h + 'px')
+      }
     }
     updateHeaderHeight()
     window.addEventListener('resize', updateHeaderHeight)
     return () => window.removeEventListener('resize', updateHeaderHeight)
-  }, [])
+  }, [isReducedHeaderPage])
 
-  const isReducedHeaderPage = location.pathname === '/cart' || location.pathname === '/checkout';
-  
-  // Update CSS variable for header height based on reduced header pages state
-  useEffect(() => {
-    const updateHeaderHeight = () => {
-      const headerEl = headerRef.current;
-      if (headerEl) {
-        // When on cart or checkout page, only calculate the height of the visible part (headerTop)
-        let h = 0;
-        if (isReducedHeaderPage) {
-          // Calculate only the height of the top row when on cart/checkout page
-          const headerTopEl = headerEl.querySelector(`.${styles.headerTop}`) as HTMLElement | null;
-          h = headerTopEl ? headerTopEl.offsetHeight + 8 : 0; // +8 for margin-bottom
-        } else {
-          h = headerEl.offsetHeight;
-        }
-        document.documentElement.style.setProperty('--header-h', h + 'px');
-      }
-    };
-    
-    updateHeaderHeight();
-    window.addEventListener('resize', updateHeaderHeight);
-    return () => window.removeEventListener('resize', updateHeaderHeight);
-  }, [isReducedHeaderPage]);
-  
   const headerClasses = [
     styles.header,
-    isHidden && styles.headerHidden,
-    (isHovered || activeMenu) && styles.headerSolid,
+    isContactsPage && styles.headerOverlay,
+    !isContactsPage && isHidden && styles.headerHidden,
+    isContactsPage && (isNavRevealed || !!activeMenu) && styles.headerNavVisible,
+    // On contacts overlay: keep semi-transparent on hover; go solid only when dropdown is open.
+    (isContactsPage ? !!activeMenu : (isHovered || !!activeMenu)) && styles.headerSolid,
     isReducedHeaderPage && styles.headerCartPage,
   ].filter(Boolean).join(' ')
 
   return (
     <>
-      <header
+      {/* Contacts page: invisible hover zone at the very top to reveal header without scrolling */}
+      {isContactsPage && (
+        <div
+          className={styles.headerRevealZone}
+          onMouseEnter={revealHeader}
+          onMouseLeave={scheduleHideHeader}
+          aria-hidden="true"
+        />
+      )}
+      <header 
         id="main-header"
         className={headerClasses}
         ref={(el) => { headerRef.current = el }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => {
-          setIsHovered(false);
-        }}
+        onMouseEnter={revealHeader}
+        onMouseLeave={scheduleHideHeader}
       >
         {/* Top row */}
-        <div
-          className={styles.headerTop}
-          ref={(el) => { headerTopRef.current = el; }}
-          onMouseEnter={() => {
-            isMouseInHeaderTopRef.current = true;
-            if (activeMenu) {
-              closeMenu();
-            }
-          }}
-          onMouseLeave={() => {
-            isMouseInHeaderTopRef.current = false;
-          }}
-        >
+        <div className={styles.headerTop}>
           <div className={styles.headerLeft}>
             {/* Location button */}
             <button className={styles.iconBtn} type="button" aria-label="Выбрать локацию">
@@ -325,11 +348,32 @@ export default function Header() {
           <div className={styles.headerRight}>
             {/* Cart (separate page like BORK) */}
             <Link to="/cart" aria-label="Корзина" className={styles.iconLink}>
-              <svg viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <motion.svg 
+                viewBox="0 0 24 24" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                aria-hidden="true"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
                 <path d="M8 7V5a4 4 0 018 0v2"/>
                 <rect x="3" y="7" width="18" height="14" rx="2" ry="2"/>
-              </svg>
-              {cartCount > 0 && <span className={styles.cartBadge}>{cartCount}</span>}
+              </motion.svg>
+              <AnimatePresence mode="popLayout">
+                {cartCount > 0 && (
+                  <motion.span 
+                    key={cartCount}
+                    className={styles.cartBadge}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    data-cart-badge
+                  >
+                    {cartCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </Link>
             
             {/* Search */}
@@ -368,18 +412,11 @@ export default function Header() {
         <div className={styles.centerDivider} />
 
         {/* Navigation + dropdowns */}
-        <div
+        <div 
           className={styles.navArea}
           // Important: do NOT close on navArea mouseleave. The dropdown is fixed-position and
           // sits outside navArea's box, so closing here makes it "impossible to catch".
-          onMouseEnter={() => {
-            clearHoverTimer();
-            // Check if mouse is entering from the dropdown area (from below)
-            if (activeMenu) {
-              // Reset the flag as user is interacting with the header area
-              isMouseInHeaderTopRef.current = false;
-            }
-          }}
+          onMouseEnter={() => clearHoverTimer()}
         >
           <nav className={styles.headerBottom} role="navigation" aria-label="Главное меню">
             {menuItems.map((item) => (
@@ -389,7 +426,7 @@ export default function Header() {
                 onMouseEnter={() => setHoveredMenuItem(item.id)}
                 onMouseLeave={() => setHoveredMenuItem(null)}
               >
-                <Link
+                <Link 
                   to={item.href}
                   className={`${styles.menuItemButton} ${activeMenu === item.id ? styles.active : ''} ${hoveredMenuItem === item.id ? styles.menuItemHovered : ''}`}
                   onMouseEnter={(e) => {
@@ -427,30 +464,19 @@ export default function Header() {
             }}
             className={`${styles.dropdownPanel} ${activeMenu ? styles.dropdownVisible : ''}`}
             // Keep dropdown open while cursor is inside the panel.
-            onMouseEnter={() => {
-              clearHoverTimer();
-            }}
-            // Close when cursor leaves the dropdown area only from the bottom or above the header.
+            onMouseEnter={() => clearHoverTimer()}
+            // Close only when cursor goes BELOW the dropdown bottom edge.
             onMouseLeave={(e) => {
               const panel = dropdownPanelRef.current
-              const headerTopEl = headerTopRef.current
-              if (!panel || !headerTopEl) {
+              if (!panel) {
                 closeMenu()
                 return
               }
-              
-              const panelRect = panel.getBoundingClientRect()
-              const headerTopRect = headerTopEl.getBoundingClientRect()
-              
-              // Store the last Y position to determine movement direction
-              lastKnownYPos.current = e.clientY;
-              
-              // Close if cursor goes below the dropdown
-              if (e.clientY >= panelRect.bottom - 2) {
-                closeMenu()
-              }
-              // Close if cursor goes above the top row of the header (above the divider line)
-              else if (e.clientY < headerTopRect.top) {
+              const rect = panel.getBoundingClientRect()
+              // If user moves back up into the header/menu, do not close.
+              if (e.clientY < rect.top) return
+              // Close only when leaving through the bottom boundary.
+              if (e.clientY >= rect.bottom - 2) {
                 closeMenu()
               }
             }}

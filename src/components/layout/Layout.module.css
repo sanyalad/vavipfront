@@ -12,3 +12,25 @@
   width: 100%;
   /* Allow main content to take full height without fixed header interference */
 }
+
+/* Mobile: add padding-top for non-home pages to prevent content overlap with mobile header */
+/* Mobile bar: top 8px + logo height clamp(64px, 15vw, 88px) ≈ 96px max + safety margin ≈ 112px */
+@media (max-width: 719px) {
+  .mainNotHome {
+    padding-top: clamp(104px, 22vw, 120px);
+  }
+}
+
+/* Smaller mobile: top 6px + logo 72px ≈ 78px max + safety margin ≈ 96px */
+@media (max-width: 480px) {
+  .mainNotHome {
+    padding-top: clamp(88px, 20vw, 100px);
+  }
+}
+
+/* Very small mobile: top 4px + logo 72px ≈ 76px max + safety margin ≈ 92px */
+@media (max-width: 360px) {
+  .mainNotHome {
+    padding-top: clamp(84px, 19vw, 96px);
+  }
+}

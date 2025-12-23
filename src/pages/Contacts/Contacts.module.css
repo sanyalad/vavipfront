@@ -1,242 +1,233 @@
-/* ===== Contacts Page - Clean Minimal Design ===== */
+/* ===== Contacts Page - Premium Design with Large Blocks ===== */
 .contactsPage {
   min-height: 100vh;
-  padding-top: clamp(100px, 12vw, 140px);
-  padding-bottom: clamp(60px, 8vw, 80px);
-  /* Однотонный фон как у шапки, без узоров */
+  min-height: 100dvh;
   background: var(--color-bg);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
 }
 
-.container {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 0 clamp(var(--spacing-md), 2vw, var(--spacing-lg));
+/* ===== Fullscreen Step (Department Selection) ===== */
+.fullscreenStep {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* ===== Заголовок ===== */
+/* ===== Page Title ===== */
 .pageTitle {
-  font-size: clamp(1.75rem, 5vw, 3rem);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 300;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #fff;
-  margin-bottom: clamp(40px, 6vw, 60px);
+  text-align: center;
+  margin: 0 0 clamp(24px, 4vh, 48px);
+  flex-shrink: 0;
 }
 
-/* ===== Step Content ===== */
-.stepContent {
+/* Smaller title variant for compact steps (e.g., final contacts card) */
+.pageTitleCompact {
+  font-size: clamp(20px, 2.4vw, 28px);
+  margin-bottom: 16px;
+}
+
+/* ===== Large Department Grid (2x2) ===== */
+.departmentGridLarge {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
   width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  /* GPU acceleration */
+  transform: translateZ(0);
+}
+
+/* ===== Department Block (Large Tile) ===== */
+.departmentBlock {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(28px, 4vw, 40px);
+  justify-content: center;
+  gap: 12px;
+  padding: clamp(24px, 4vw, 48px);
+  background: #141414;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  overflow: hidden;
+  /* GPU acceleration & performance */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  contain: layout style paint;
+  /* Transitions for non-transform properties */
+  transition: 
+    background 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.stepQuestion {
-  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
-  color: rgba(255, 255, 255, 0.85);
+/* Different background colors for each block */
+.departmentBlock[data-index="0"] {
+  background: #1a1a1a;
+}
+.departmentBlock[data-index="1"] {
+  background: #171717;
+}
+.departmentBlock[data-index="2"] {
+  background: #141414;
+}
+.departmentBlock[data-index="3"] {
+  background: #111111;
+}
+
+/* Hover states */
+.departmentBlock:hover {
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
+.departmentBlock[data-index="0"]:hover {
+  background: #222222;
+}
+.departmentBlock[data-index="1"]:hover {
+  background: #1f1f1f;
+}
+.departmentBlock[data-index="2"]:hover {
+  background: #1c1c1c;
+}
+.departmentBlock[data-index="3"]:hover {
+  background: #191919;
+}
+
+/* Block label */
+.blockLabel {
+  font-size: clamp(14px, 2vw, 20px);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  text-align: center;
+}
+
+/* Block description */
+.blockDescription {
+  font-size: clamp(11px, 1.2vw, 14px);
+  font-weight: 400;
   letter-spacing: 0.04em;
-  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
 }
 
-/* ===== Options Grid - Horizontal tiles ===== */
+/* Ripple effect */
+.ripple {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* Focus state */
+.departmentBlock:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: -2px;
+}
+
+/* ===== Centered Step (Country, City, Contacts) ===== */
+.centeredStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(80px, 10vh, 120px) clamp(16px, 4vw, 32px) clamp(32px, 5vh, 48px);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+/* Step subtitle */
+.stepSubtitle {
+  font-size: clamp(12px, 1.5vw, 14px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin: -16px 0 clamp(32px, 5vh, 48px);
+}
+
+/* ===== Options Grid (Country/City) ===== */
 .optionsGrid {
   display: flex;
-  flex-direction: row;
-  gap: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
-  max-width: 900px;
+  max-width: 600px;
+  margin-bottom: clamp(24px, 4vh, 40px);
 }
 
-/* Department tiles - 4 in a row */
-.optionsGrid.departmentGrid {
-  gap: 0;
-}
-
-@media (max-width: 768px) {
-  .optionsGrid {
-    flex-direction: column;
-    max-width: 400px;
-  }
-}
-
-/* ===== Tile-style buttons (BORK-inspired) ===== */
+/* Option button */
 .optionButton {
-  flex: 1;
-  min-height: clamp(100px, 12vw, 140px);
-  padding: clamp(24px, 3vw, 32px) clamp(18px, 2.2vw, 24px);
-  font-size: clamp(0.75rem, 0.85vw, 0.85rem);
+  padding: 16px 28px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.9);
   background: #1a1a1a;
   border: none;
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* GPU acceleration */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
-.optionButton:first-child {
-  border-radius: 4px 0 0 4px;
-}
-
-.optionButton:last-child {
-  border-radius: 0 4px 4px 0;
-}
-
-/* Department tiles: different solid colors, no borders/gradients */
-.departmentGrid .optionButton {
-  transform: none;
-  box-shadow: none;
-}
-
-.departmentGrid .optionButton:nth-child(1) {
-  background: #1f1f1f;
-}
-.departmentGrid .optionButton:nth-child(2) {
-  background: #1c1c1c;
-}
-.departmentGrid .optionButton:nth-child(3) {
-  background: #191919;
-}
-.departmentGrid .optionButton:nth-child(4) {
-  background: #161616;
-}
-
-/* Hover state - brighten color only */
 .optionButton:hover {
-  background: #2a2a2a;
+  background: #252525;
   color: #fff;
-  transform: none;
-  box-shadow: none;
-  z-index: 1;
 }
 
-.departmentGrid .optionButton:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.departmentGrid .optionButton:nth-child(1):hover {
-  background: #2a2a2a;
-}
-.departmentGrid .optionButton:nth-child(2):hover {
-  background: #272727;
-}
-.departmentGrid .optionButton:nth-child(3):hover {
-  background: #242424;
-}
-.departmentGrid .optionButton:nth-child(4):hover {
-  background: #212121;
-}
-
-.optionButton:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.departmentGrid .optionButton:active {
-  transform: none;
-  box-shadow: none;
-}
-
-/* Focus state for accessibility */
 .optionButton:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.4);
   outline-offset: 2px;
 }
 
-@media (max-width: 768px) {
-  .optionButton {
-    min-height: 80px;
-    border-bottom: none;
-  }
-  
-  .optionButton:first-child {
-    border-radius: 4px 4px 0 0;
-  }
-  
-  .optionButton:last-child {
-    border-radius: 0 0 4px 4px;
-  }
-}
-
-/* ===== Secondary options (country/city) - smaller tiles ===== */
-.secondaryGrid {
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  max-width: 700px;
-}
-
-.secondaryGrid .optionButton {
-  flex: 0 1 auto;
-  min-height: 56px;
-  min-width: 140px;
-  padding: 16px 24px;
-  font-size: 0.8rem;
-  border-radius: 4px;
-  border-right: none;
-  background: #1f1f1f;
-}
-
-.secondaryGrid .optionButton:first-child,
-.secondaryGrid .optionButton:last-child {
-  border-radius: 4px;
-}
-
-.secondaryGrid .optionButton:hover {
-  background: #2a2a2a;
-}
-
-@media (max-width: 768px) {
-  .secondaryGrid {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  
-  .secondaryGrid .optionButton {
-    flex: 1 1 45%;
-    min-width: 120px;
-    border-bottom: none;
-  }
-  
-  .secondaryGrid .optionButton:first-child,
-  .secondaryGrid .optionButton:last-child {
-    border-radius: 4px;
-  }
-}
-
 /* ===== Back Button ===== */
 .backButton {
-  padding: 12px 24px;
-  font-size: 0.85rem;
+  padding: 12px 28px;
+  font-size: 13px;
   font-weight: 400;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.5);
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-family: inherit;
-  margin-top: 32px;
+  transition: 
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .backButton:hover {
@@ -245,36 +236,37 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* ===== Contacts Card ===== */
+/* ===== Contacts Card - Compact Layout ===== */
 .contactsCard {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 48px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  gap: 12px;
+  padding: clamp(32px, 5vw, 48px);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
   width: 100%;
-  max-width: 450px;
+  max-width: 420px;
+  margin-bottom: 16px;
 }
 
 .contactsLabel {
-  font-size: 0.85rem;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.5);
   margin: 0;
 }
 
 .phoneNumber {
-  font-size: clamp(1.6rem, 4vw, 2.2rem);
-  font-weight: 600;
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 300;
   letter-spacing: 0.04em;
   color: #fff;
   text-decoration: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .phoneNumber:hover {
@@ -282,11 +274,13 @@
 }
 
 .emailLink {
-  font-size: 1rem;
+  font-size: 14px;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.2s ease;
+  transition: 
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .emailLink:hover {
@@ -295,59 +289,64 @@
 }
 
 .workHours {
-  font-size: 0.9rem;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
-  margin: 8px 0 0;
+  margin: 4px 0 0;
 }
 
 /* ===== Social Links ===== */
 .socialLinks {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   justify-content: center;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .socialLink {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.03);
-  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+  transition: 
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(0) translateZ(0);
 }
 
 .socialLink:hover {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.06);
-  transform: translateY(-1px);
+  transform: translateY(-3px) translateZ(0);
 }
 
 .socialLink img {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   filter: brightness(0) invert(1) saturate(0) contrast(1.1);
-  opacity: 0.95;
+  opacity: 0.9;
 }
 
 /* ===== Reset Button ===== */
 .resetButton {
-  padding: 14px 28px;
-  font-size: 0.9rem;
+  padding: 12px 24px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: #fff;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-family: inherit;
-  margin-top: 16px;
+  transition: 
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .resetButton:hover {
@@ -355,38 +354,124 @@
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* ===== Responsive ===== */
+/* ===== Responsive - Tablet ===== */
 @media (min-width: 768px) and (max-width: 1024px) {
-  .contactsPage {
-    padding-top: clamp(110px, 10vw, 120px);
+  .fullscreenStep {
+    padding: clamp(90px, 12vh, 110px) clamp(20px, 4vw, 40px) clamp(30px, 5vh, 50px);
   }
-
-  .optionButton {
-    min-height: clamp(110px, 10vw, 120px);
+  
+  .departmentGridLarge {
+    max-height: calc(100vh - 200px);
   }
 }
 
-@media (max-width: 768px) {
-  .contactsPage {
-    padding-top: clamp(90px, 10vw, 100px);
+/* ===== Responsive - Mobile ===== */
+@media (max-width: 767px) {
+  .fullscreenStep {
+    padding: 0;
   }
-
+  
   .pageTitle {
-    margin-bottom: clamp(32px, 4vw, 40px);
+    font-size: clamp(24px, 6vw, 32px);
+    margin-bottom: clamp(16px, 3vh, 24px);
   }
-
-  .stepContent {
-    gap: clamp(24px, 3vw, 32px);
+  
+  /* Keep 2x2 grid layout on mobile like desktop (app-like) */
+  .departmentGridLarge {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    height: 100vh;
+    height: 100dvh;
   }
-
+  
+  .departmentBlock {
+    padding: clamp(16px, 3vw, 24px);
+    gap: clamp(6px, 1.5vw, 10px);
+  }
+  
+  .blockLabel {
+    font-size: clamp(12px, 3vw, 16px);
+  }
+  
+  .blockDescription {
+    font-size: clamp(9px, 2vw, 12px);
+  }
+  
+  .centeredStep {
+    padding: clamp(70px, 10vh, 90px) 16px clamp(24px, 4vh, 40px);
+    justify-content: flex-start;
+    padding-top: clamp(100px, 15vh, 140px);
+  }
+  
+  .stepSubtitle {
+    margin: -12px 0 clamp(24px, 4vh, 32px);
+  }
+  
+  .optionsGrid {
+    gap: 8px;
+    margin-bottom: clamp(20px, 3vh, 32px);
+  }
+  
+  .optionButton {
+    padding: 14px 20px;
+    font-size: 12px;
+    flex: 1 1 45%;
+    min-width: 120px;
+  }
+  
   .contactsCard {
-    padding: clamp(24px, 3vw, 32px) clamp(18px, 2.2vw, 24px);
+    padding: clamp(24px, 5vw, 36px);
+    gap: 10px;
+  }
+  
+  .phoneNumber {
+    font-size: clamp(1.3rem, 5vw, 1.6rem);
+  }
+  
+  .socialLink {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .socialLink img {
+    width: 14px;
+    height: 14px;
   }
 }
 
-@media (max-width: 480px) {
-  .contactsPage {
-    padding-top: clamp(80px, 9vw, 90px);
-    padding-bottom: clamp(40px, 5vw, 60px);
+/* ===== Responsive - Very Small Screens ===== */
+@media (max-width: 380px) {
+  .pageTitle {
+    font-size: 22px;
   }
+  
+  .blockLabel {
+    font-size: 12px;
+  }
+  
+  .optionButton {
+    padding: 12px 16px;
+    font-size: 11px;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .departmentBlock,
+  .optionButton,
+  .backButton,
+  .resetButton,
+  .socialLink {
+    transition: none;
+  }
+  
+  .ripple {
+    display: none;
+  }
+}
+
+/* ===== Performance: Remove will-change after animation ===== */
+.departmentBlock:not(:hover) {
+  will-change: auto;
 }
