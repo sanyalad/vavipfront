@@ -108,7 +108,6 @@ export function useScrollReveal(options: UseScrollRevealOptions = {}): UseScroll
  * Hook for staggered scroll reveal animations on multiple elements
  */
 export function useStaggeredReveal(
-  itemCount: number,
   options: UseScrollRevealOptions & { staggerDelay?: number } = {}
 ) {
   const { staggerDelay = 50, ...revealOptions } = options
