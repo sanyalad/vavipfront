@@ -8,7 +8,7 @@
  * Показывает предупреждение если FPS < 55
  */
 export function startFPSMonitor() {
-  if (process.env.NODE_ENV !== 'development') return
+  if (import.meta.env.MODE === 'production') return
 
   let lastTime = performance.now()
   let frameCount = 0
@@ -42,7 +42,7 @@ export function startFPSMonitor() {
  * Layout Shift Monitor - мониторинг layout shifts
  */
 export function startLayoutShiftMonitor() {
-  if (process.env.NODE_ENV !== 'development') return
+  if (import.meta.env.MODE === 'production') return
   if (typeof PerformanceObserver === 'undefined') return
 
   try {
@@ -67,7 +67,7 @@ export function startLayoutShiftMonitor() {
  * Long Task Monitor - мониторинг долгих задач (>50ms)
  */
 export function startLongTaskMonitor() {
-  if (process.env.NODE_ENV !== 'development') return
+  if (import.meta.env.MODE === 'production') return
   if (typeof PerformanceObserver === 'undefined') return
 
   try {
@@ -91,7 +91,7 @@ export function startLongTaskMonitor() {
  * Инициализация всех мониторов производительности
  */
 export function initPerformanceMonitoring() {
-  if (process.env.NODE_ENV !== 'development') return
+  if (import.meta.env.MODE === 'production') return
 
   console.log('🔍 Performance monitoring started')
   
@@ -108,4 +108,5 @@ export function initPerformanceMonitoring() {
 }
 
 export default initPerformanceMonitoring
+
 
