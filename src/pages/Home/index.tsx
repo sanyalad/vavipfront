@@ -5,10 +5,7 @@ import VideoSection from '@/components/animations/VideoSection'
 import Footer from '@/components/layout/Footer'
 import { useGesturePhysics, calculateWheelRange } from '@/hooks/useGesturePhysics'
 import type { GestureState, GestureDirection } from '@/utils/gesturePhysics'
-import { useTrackpadGesture } from '@/hooks/useTrackpadGesture'
-import type { UseTrackpadGestureOptions } from '@/hooks/useTrackpadGesture'
-
-type GestureUpdateState = Parameters<UseTrackpadGestureOptions['onGestureUpdate']>[0]
+import { useTrackpadGesture, type GestureUpdateState } from '@/hooks/useTrackpadGesture'
 import styles from './Home.module.css'
 
 // ===== DEBUG MODE =====
