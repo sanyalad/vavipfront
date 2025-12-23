@@ -5,7 +5,7 @@ import VideoSection from '@/components/animations/VideoSection'
 import Footer from '@/components/layout/Footer'
 import { useGesturePhysics, calculateWheelRange } from '@/hooks/useGesturePhysics'
 import type { GestureState, GestureDirection } from '@/utils/gesturePhysics'
-import { useTrackpadGesture } from '@/hooks/useTrackpadGesture'
+import { useTrackpadGesture, type GestureUpdateState } from '@/hooks/useTrackpadGesture'
 import styles from './Home.module.css'
 
 // ===== DEBUG MODE =====
@@ -400,7 +400,7 @@ export default function HomePage() {
   const finalizeTrackpadGestureRef = useRef<((target: 0 | 1, nextIndex: number | null) => void) | null>(null)
   
   // Ref for scrollToIndex to avoid circular dependency issues
-  const scrollToIndexRef = useRef<((nextIndex: number) => void) | null>(null)
+  const scrollToIndexRef = useRef<((nextIndex: number, skipAnimation?: boolean) => void) | null>(null)
 
   useEffect(() => {
     activeIndexRef.current = activeIndex
@@ -413,7 +413,7 @@ export default function HomePage() {
   
   // Initialize trackpad gesture hook
   const trackpadGesture = useTrackpadGesture({
-    onGestureUpdate: useCallback((state) => {
+    onGestureUpdate: useCallback((state: GestureUpdateState) => {
       // Обновление CSS var напрямую
       const wrapper = videoWrapperRef.current
       if (wrapper) {
@@ -453,7 +453,7 @@ export default function HomePage() {
         }
       }
     }, [clampIndex]),
-    onGestureCommit: useCallback((direction, isFast) => {
+    onGestureCommit: useCallback((direction: 'next' | 'prev', isFast: boolean) => {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/4fe65748-5bf6-42a4-999b-e7fdbb89bc2e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Home/index.tsx:451',message:'onGestureCommit called',data:{direction,isFast,activeIndex:activeIndexRef.current,lastSlideIndex,currentProgress:gestureProgressRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
