@@ -1,0 +1,269 @@
+/* RotaryDial Component - Dark Theme Adaptation */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.phoneNumber {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.dialWrapper {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.dialWrapper:active {
+  cursor: grabbing;
+}
+
+.dialPlate {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  transform: rotate(var(--dial-rotation, 0deg));
+  transform-origin: center;
+  will-change: transform;
+  backface-visibility: hidden;
+  /* GPU acceleration */
+  transform-style: preserve-3d;
+}
+
+.dialPlate.dragging {
+  transition: none;
+}
+
+.dialPlate.animating {
+  transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Внешний круг с остановками (неподвижный) */
+.dialStopsContainer {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.stop {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--color-text-muted);
+  border-radius: 50%;
+  top: 0;
+  left: 50%;
+  /* transform-origin: center of dial (which is at 50% of container, 120px from top) */
+  transform-origin: 50% 124px;
+}
+
+.stop:nth-child(1) {
+  transform: translateX(-50%) rotate(0deg);
+}
+.stop:nth-child(2) {
+  transform: translateX(-50%) rotate(36deg);
+}
+.stop:nth-child(3) {
+  transform: translateX(-50%) rotate(72deg);
+}
+.stop:nth-child(4) {
+  transform: translateX(-50%) rotate(108deg);
+}
+.stop:nth-child(5) {
+  transform: translateX(-50%) rotate(144deg);
+}
+.stop:nth-child(6) {
+  transform: translateX(-50%) rotate(180deg);
+}
+.stop:nth-child(7) {
+  transform: translateX(-50%) rotate(216deg);
+}
+.stop:nth-child(8) {
+  transform: translateX(-50%) rotate(252deg);
+}
+.stop:nth-child(9) {
+  transform: translateX(-50%) rotate(288deg);
+}
+.stop:nth-child(10) {
+  transform: translateX(-50%) rotate(324deg);
+}
+
+/* Диал с цифрами (вращающийся) */
+.dialInner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.dialDigit {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 96px;
+  transform: translateX(-50%) rotate(var(--digit-angle, 0deg));
+  border-radius: 50%;
+  cursor: pointer;
+  transition: 
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dialDigit:hover {
+  background: var(--hover-bg);
+}
+
+.dialDigit.selected {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.digitText {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  user-select: none;
+  pointer-events: none;
+}
+
+.dialDigit.selected .digitText {
+  color: var(--color-bg);
+}
+
+/* Центральный штифт */
+.centerPin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Палец-ограничитель (за пределами диала) */
+.fingerStop {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 8px;
+  height: 24px;
+  background: var(--color-accent);
+  border-radius: 4px;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Инструкция */
+.dialHint {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Responsive - Tablet */
+@media (max-width: 1024px) {
+  .dialWrapper {
+    width: 200px;
+    height: 200px;
+  }
+
+  .stop {
+    transform-origin: 50% 100px;
+  }
+
+  .dialDigit {
+    width: 28px;
+    height: 28px;
+    transform-origin: 50% 80px;
+  }
+
+  .digitText {
+    font-size: 14px;
+  }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 768px) {
+  .dialWrapper {
+    width: 160px;
+    height: 160px;
+  }
+
+  .phoneNumber {
+    font-size: 1rem;
+  }
+
+  .stop {
+    transform-origin: 50% 80px;
+  }
+
+  .dialDigit {
+    width: 24px;
+    height: 24px;
+    transform-origin: 50% 64px;
+  }
+
+  .digitText {
+    font-size: 12px;
+  }
+
+  .centerPin {
+    width: 12px;
+    height: 12px;
+  }
+
+  .fingerStop {
+    width: 6px;
+    height: 20px;
+    top: -10px;
+  }
+
+  .dialHint {
+    font-size: 12px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .dialPlate.animating {
+    transition: none;
+  }
+
+  .dialDigit {
+    transition: none;
+  }
+}
+

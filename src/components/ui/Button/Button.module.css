@@ -21,6 +21,12 @@
   /* GPU-ускорение */
   transform: translateY(0) translateZ(0);
   backface-visibility: hidden;
+  /* Оптимизация: will-change только при hover */
+  will-change: auto;
+}
+
+.button:hover:not(:disabled) {
+  will-change: transform;
 }
 
 .button:hover:not(:disabled) {

@@ -1,0 +1,236 @@
+/* Footer Drawer - адаптировано из card-flip-navigator */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1250;
+}
+
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1260;
+  transform: translate3d(0, 100%, 0);
+  height: 85vh;
+  max-height: 85vh;
+}
+
+.scrollContainer {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.headerContent {
+  max-width: calc(1440px + 48px);
+  margin: 0 auto;
+  padding: 16px clamp(18px, 2.2vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+.closeButton {
+  padding: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.content {
+  max-width: calc(1440px + 48px);
+  margin: 0 auto;
+  padding: 48px clamp(18px, 2.2vw, 24px);
+}
+
+.footerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.columns {
+  display: flex;
+  justify-content: flex-start;
+  gap: clamp(64px, 10vw, 128px);
+  flex-wrap: nowrap;
+  padding-top: clamp(48px, 6vw, 72px);
+  font-size: clamp(0.8rem, 0.85vw, 0.85rem);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.column {
+  min-width: 260px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.columns strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.columns a {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.columns a:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.footerDivider {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 14px 0 0;
+}
+
+.footerBottomWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footerBottom {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  justify-content: flex-start;
+}
+
+.verticalTextFooter img {
+  height: 20px;
+  opacity: 0.85;
+  filter: brightness(0) invert(1) saturate(0) contrast(1.1);
+}
+
+.socialIcons {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.socialIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+
+.socialIcon:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.socialIcon img {
+  width: auto;
+  height: 20px;
+  filter: brightness(0) invert(1) saturate(0) contrast(1.1);
+  opacity: 0.95;
+}
+
+.copyrightText {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .columns {
+    gap: clamp(40px, 5vw, 64px);
+  }
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding: 32px clamp(14px, 1.8vw, 16px);
+  }
+
+  .columns {
+    flex-direction: column;
+    gap: clamp(24px, 3vw, 28px);
+    padding-top: clamp(16px, 2vw, 18px);
+  }
+
+  .column {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .footerBottomWrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: clamp(12px, 1.5vw, 14px);
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 24px clamp(12px, 1.5vw, 14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .closeButton {
+    transition: none;
+  }
+}
+

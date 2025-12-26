@@ -21,7 +21,7 @@ export default function Layout() {
       <main className={`${styles.main} ${!isHomePage && !isContactsPage ? styles.mainNotHome : ''}`}>
         <Outlet />
       </main>
-      {!isHomePage && <Footer />}
+      {!isHomePage && !isContactsPage && <Footer slideIn={true} />}
       <CartSidebar />
       <AuthSidebar />
       <SearchOverlay />

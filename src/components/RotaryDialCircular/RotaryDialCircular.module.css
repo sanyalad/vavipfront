@@ -1,0 +1,418 @@
+/* RotaryDialCircular Component - Dark Theme with 3D Effects and Spring Physics */
+
+:root {
+  /* Component-specific variables */
+  --dial-size: 280px;
+  --button-size: 64px;
+  --button-radius: 130px;
+}
+
+.container {
+  display: flex;
+  gap: var(--spacing-xl);
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl) var(--spacing-lg);
+  min-height: 100vh;
+  font-family: var(--font-body);
+}
+
+/* === ЛЕВАЯ КОЛОНКА - ЦИФЕРБЛАТ === */
+
+.dialSection {
+  flex-shrink: 0;
+  perspective: 1500px;
+}
+
+/* === ОСНОВНОЙ ДИАЛ === */
+
+.dialWrapper {
+  width: var(--dial-size);
+  height: var(--dial-size);
+  user-select: none;
+  touch-action: none;
+  position: relative;
+  cursor: grab;
+}
+
+.dialWrapper:active {
+  cursor: grabbing;
+}
+
+.dialFrame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg) 100%
+  );
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.4),
+    0 4px 6px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+}
+
+/* === ИНДИКАТОР ВЫБОРА (вверху) === */
+
+.selectionIndicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: var(--spacing-md);
+  background: var(--color-accent);
+  z-index: 10;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/* === ВРАЩАЮЩИЙСЯ ДИАЛ С КНОПКАМИ === */
+
+.dialPlate {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  --rotation: 0deg;
+  transform: rotateZ(var(--rotation));
+  /* ВСЕ анимации идут через JavaScript (Spring Physics) */
+  transition: none;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.dialPlate.dragging {
+  transition: none;
+}
+
+.dialPlate.returning {
+  transition: none;
+}
+
+/* === ЦЕНТРАЛЬНЫЙ ШТИФТ === */
+
+.centerPin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(192, 192, 192, 0.2) 100%
+  );
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  transform: translate(-50%, -50%) translateZ(10px);
+  z-index: 20;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+/* === КНОПКИ-ЦИФРЫ === */
+
+.dialButton {
+  position: absolute;
+  width: var(--button-size);
+  height: var(--button-size);
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  user-select: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: 50%;
+  left: 50%;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  padding: 0;
+  margin: 0;
+  --button-angle: 0deg;
+  transform: 
+    translate(-50%, -50%)
+    rotateZ(var(--button-angle))
+    translateX(var(--button-radius))
+    rotateZ(calc(var(--button-angle) * -1))
+    rotateX(-8deg)
+    rotateY(-4deg)
+    translateZ(0px);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.dialPlate.dragging .dialButton {
+  cursor: grabbing;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* SELECTED STATE */
+.dialButton.selected {
+  background: rgba(192, 192, 192, 0.2);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transform: 
+    translate(-50%, -50%)
+    rotateZ(var(--button-angle))
+    translateX(var(--button-radius))
+    rotateZ(calc(var(--button-angle) * -1))
+    rotateX(-8deg)
+    rotateY(-4deg)
+    translateZ(8px)
+    scale(1.05);
+}
+
+/* HOVER ЭФФЕКТ */
+.dialButton:hover:not(.selected):not(:disabled) {
+  background: var(--color-bg-tertiary);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+  transform: 
+    translate(-50%, -50%)
+    rotateZ(var(--button-angle))
+    translateX(var(--button-radius))
+    rotateZ(calc(var(--button-angle) * -1))
+    rotateX(-8deg)
+    rotateY(-4deg)
+    translateZ(4px);
+}
+
+.dialButton:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* Цифра внутри кнопки */
+.digitText {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  pointer-events: none;
+}
+
+.dialButton.selected .digitText {
+  opacity: 1;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+
+/* === ПРАВАЯ КОЛОНКА - КОНТЕНТ === */
+
+.contentSection {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  opacity: 0.6;
+  animation: fadeInContent 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.2s backwards;
+}
+
+@keyframes fadeInContent {
+  from {
+    opacity: 0;
+    transform: translateX(var(--spacing-lg));
+  }
+  to {
+    opacity: 0.6;
+    transform: translateX(0);
+  }
+}
+
+.phoneNumber {
+  font-size: 56px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  margin: 0;
+  opacity: 0.8;
+  font-family: var(--font-body);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 500;
+  animation: hintPulse 3s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* === ACCESSIBILITY === */
+
+.dialButton:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 6px;
+  box-shadow: 
+    0 0 0 3px rgba(192, 192, 192, 0.4),
+    0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* === TOUCH DEVICE === */
+
+@media (hover: none) {
+  .dialButton:hover {
+    background: var(--color-bg-secondary);
+    transform: 
+      translate(-50%, -50%)
+      rotateZ(var(--button-angle))
+      translateX(var(--button-radius))
+      rotateZ(calc(var(--button-angle) * -1))
+      rotateX(-8deg)
+      rotateY(-4deg)
+      translateZ(0px);
+  }
+}
+
+/* === RESPONSIVE === */
+
+@media (max-width: 1024px) {
+  .dialWrapper {
+    width: 240px;
+    height: 240px;
+    --dial-size: 240px;
+  }
+
+  .dialButton {
+    width: 52px;
+    height: 52px;
+    --button-radius: 100px;
+  }
+
+  .digitText {
+    font-size: 18px;
+  }
+
+  .selectionIndicator {
+    height: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dialWrapper {
+    width: 200px;
+    height: 200px;
+    --dial-size: 200px;
+  }
+
+  .phoneNumber {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+  }
+
+  .dialHole {
+    width: 4px;
+    height: 4px;
+  }
+
+  .dialButton {
+    width: 44px;
+    height: 44px;
+    --button-radius: 85px;
+  }
+
+  .digitText {
+    font-size: 16px;
+  }
+
+  .dialFrame {
+    border-width: 3px;
+  }
+
+  .selectionIndicator {
+    height: 12px;
+    width: 2px;
+  }
+
+  .dialCenterPin {
+    width: 14px;
+    height: 14px;
+  }
+
+  .dialHint {
+    font-size: 12px;
+  }
+}
+
+/* === REDUCED MOTION === */
+
+@media (prefers-reduced-motion: reduce) {
+  .dialButton {
+    transition: none;
+  }
+
+  .contentSection {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .hint {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* === TOUCH DEVICE === */
+
+@media (hover: none) {
+  .dialButton:hover {
+    background: var(--color-bg-secondary);
+    transform: 
+      translate(-50%, -50%)
+      rotateZ(var(--button-angle))
+      translateX(var(--button-radius))
+      rotateZ(calc(var(--button-angle) * -1))
+      rotateX(-8deg)
+      rotateY(-4deg)
+      translateZ(0px);
+  }
+}
+
+/* === GPU OPTIMIZATION === */
+
+.dialSection {
+  will-change: perspective;
+}
+
+.dialFrame {
+  will-change: transform;
+}
+
+.dialPlate {
+  will-change: transform;
+}
+
+.dialButton {
+  will-change: transform, box-shadow;
+}
+

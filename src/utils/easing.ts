@@ -37,3 +37,4 @@ export const easingCSS = {
 export type EasingType = keyof typeof easing
 export type EasingValue = (typeof easing)[EasingType]
 
+

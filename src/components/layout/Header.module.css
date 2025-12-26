@@ -65,7 +65,8 @@
   transition:
     opacity var(--transition-medium),
     transform var(--transition-medium),
-    max-height var(--transition-medium);
+    max-height var(--transition-medium),
+    padding-bottom var(--transition-medium);
 }
 
 /* Contacts: reveal nav on hover-zone / header hover (class toggled in TS). */
@@ -116,11 +117,18 @@
 /* ===== Divider ===== */
 .centerDivider {
   display: block;
-  height: .5px;
+  height: 1px;
   width: 100%;
-  background: linear-gradient(to right, transparent 0%, #c0c0c0 15%, #c0c0c0 85%, transparent 100%);
-  opacity: .6;
+  background: linear-gradient(to right, 
+    transparent 0%, 
+    rgba(192, 192, 192, 0.1) 10%, 
+    rgba(192, 192, 192, 0.3) 20%, 
+    rgba(192, 192, 192, 0.3) 80%, 
+    rgba(192, 192, 192, 0.1) 90%, 
+    transparent 100%
+  );
   margin: 6px 0;
+  position: relative;
 }
 
 /* ===== Header rows ===== */
@@ -326,16 +334,17 @@
 
 .navHovering {
   padding-bottom: 12px;
+  transition: padding-bottom 0.2s ease;
 }
 
 .dropdownPanel {
   position: fixed;
   left: 0;
   right: 0;
-  top: calc(var(--header-h, 0px) - 1px); /* -1px to eliminate gap, account for any rounding */
+  top: calc(var(--header-h, 0px) - 2px); /* -2px to create small overlap, eliminate gap */
   /* 80% of viewport height for the dropdown area; leave 20% gap to the bottom */
-  height: calc(80vh - var(--header-h, 0px) + 1px);
-  max-height: calc(100vh - var(--header-h, 0px) + 1px);
+  height: calc(80vh - var(--header-h, 0px) + 2px);
+  max-height: calc(100vh - var(--header-h, 0px) + 2px);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-10px);
@@ -343,12 +352,13 @@
   transition: 
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), 
     transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  /* top should update immediately without transition to prevent gap */
   z-index: var(--z-dropdown);
   overflow-y: auto;
   background: var(--color-bg-secondary);
   backdrop-filter: none;
   box-shadow: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.08); /* Move border to top to eliminate gap */
+  border-top: none; /* Remove border to allow seamless overlap */
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin: 0;
   padding: 0;

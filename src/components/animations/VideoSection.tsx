@@ -38,9 +38,11 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   const sectionRef = useRef<HTMLElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isVideoReady, setIsVideoReady] = useState(false)
-  const nextVideoRef = useRef<{ webmLink: HTMLLinkElement; mp4Link: HTMLLinkElement } | null>(null)
+  const [showCaption, setShowCaption] = useState(false)
+  const nextVideoRef = useRef<boolean>(false)
   const primedRef = useRef(false)
   const isActiveRef = useRef(false)
+  const activeSinceRef = useRef<number>(0) // Track when section became active
 
   useImperativeHandle(forwardedRef, () => sectionRef.current as HTMLElement)
 
@@ -86,14 +88,13 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
 
     const handleCanPlay = () => {
       setIsVideoReady(true)
-      // If this is the active section, try to start playback immediately on readiness.
-      if (isActiveRef.current) {
+      // If this is the active section, start playback immediately
+      if (isActiveRef.current && video.paused) {
         const p = video.play()
         if (p && typeof (p as Promise<void>).then === 'function') {
           ;(p as Promise<void>).catch(() => {})
         }
       }
-      
     }
 
     const handleLoadedMetadata = () => {
@@ -101,23 +102,29 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
       if (!isVideoReady) {
         setIsVideoReady(true)
       }
-      // If this is the active section, try to start playback immediately on readiness.
-      if (isActiveRef.current) {
+      // If this is the active section, start playback immediately
+      if (isActiveRef.current && video.paused) {
         const p = video.play()
         if (p && typeof (p as Promise<void>).then === 'function') {
           ;(p as Promise<void>).catch(() => {})
         }
       }
-      
     }
 
     // Check if already loaded
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
       setIsVideoReady(true)
+      // If already loaded and active, play immediately
+      if (isActiveRef.current && video.paused) {
+        const p = video.play()
+        if (p && typeof (p as Promise<void>).then === 'function') {
+          ;(p as Promise<void>).catch(() => {})
+        }
+      }
     }
 
-    video.addEventListener('canplay', handleCanPlay)
-    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    video.addEventListener('canplay', handleCanPlay, { once: true })
+    video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
 
     return () => {
       video.removeEventListener('canplay', handleCanPlay)
@@ -125,36 +132,50 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
     }
   }, [isVideoReady])
 
-  // Play/pause video based on visibility-in-animation:
-  // - active should play
-  // - the incoming section during animation should also play (otherwise you see a "late start")
+  // Track when section becomes active for preload optimization
+  useEffect(() => {
+    if (isActive) {
+      if (activeSinceRef.current === 0) {
+        activeSinceRef.current = performance.now()
+      }
+    } else {
+      activeSinceRef.current = 0
+    }
+  }, [isActive])
+
+  // Caption animation - faster response (copied from card-flip-navigator)
+  useEffect(() => {
+    if (isActive) {
+      const timer = setTimeout(() => {
+        setShowCaption(true)
+      }, 200) // Reduced delay for faster response
+      return () => clearTimeout(timer)
+    } else {
+      setShowCaption(false)
+    }
+  }, [isActive])
+
+  // Play/pause video - simplified logic from card-flip-navigator
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
-    // Предвзводим видео как только секция смонтировалась
+    // Prime video on mount
     primeVideo()
 
-    const shouldPlay =
-      isActive ||
-      (direction === 'next' && isNext) ||
-      (direction === 'prev' && isPrev)
-
-    if (shouldPlay) {
-      // If metadata is not ready yet, play() might still be queued; that's fine.
-      if (video.paused) {
-        const p = video.play()
-        if (p && typeof (p as Promise<void>).then === 'function') {
-          ;(p as Promise<void>).catch(() => {})
-        }
+    // Play video if active, pause otherwise
+    if (isActive) {
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && video.paused) {
+        video.play().catch(() => {
+          // Autoplay blocked, that's ok
+        })
       }
-      return
+    } else {
+      if (!video.paused) {
+        video.pause()
+      }
     }
-
-    if (!video.paused) {
-      video.pause()
-    }
-  }, [direction, isActive, isNext, isPrev, isVideoReady, primeVideo])
+  }, [isActive, primeVideo])
 
   // Prime when секция появляется в viewport (даже если не активна)
   useEffect(() => {
@@ -177,48 +198,76 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
   }, [primeVideo])
 
   // Preload next video using link rel="preload".
-  // IMPORTANT: avoid doing this during long trackpad gestures (isNext/isPrev), because it can trigger
-  // aggressive network/decoding work and make trackpad scrolling feel "heavy".
+  // OPTIMIZED: Only preload when section has been active for > 500ms to avoid performance issues during gestures
   useEffect(() => {
     if (!nextVideoSrc || isLast) return
     
-    // Preload only when truly active (short + predictable), not while gesture-following.
+    // Preload only when truly active for > 500ms (not during gestures)
     if (!isActive) return
-
-    // Use link rel="preload" instead of hidden DOM elements (more efficient)
-    const webmLink = document.createElement('link')
-    webmLink.rel = 'preload'
-    webmLink.as = 'video'
-    webmLink.href = nextVideoSrc
-    webmLink.type = 'video/webm'
-    webmLink.setAttribute('fetchpriority', 'low')
-    document.head.appendChild(webmLink)
     
-    const mp4Link = document.createElement('link')
-    mp4Link.rel = 'preload'
-    mp4Link.as = 'video'
-    mp4Link.href = nextVideoSrc.replace('.webm', '.mp4')
-    mp4Link.type = 'video/mp4'
-    mp4Link.setAttribute('fetchpriority', 'low')
-    document.head.appendChild(mp4Link)
-
-    // Store references for cleanup
-    nextVideoRef.current = { webmLink, mp4Link }
-
-    return () => {
-      // Cleanup preload links
-      if (nextVideoRef.current) {
-        const { webmLink, mp4Link } = nextVideoRef.current
-        if (webmLink?.parentNode) {
-          webmLink.parentNode.removeChild(webmLink)
+    // Check if section has been active long enough
+    const activeDuration = activeSinceRef.current > 0 
+      ? performance.now() - activeSinceRef.current 
+      : 0
+    
+    if (activeDuration < 500) {
+      // Schedule preload after 500ms of being active
+      const preloadTimer = window.setTimeout(() => {
+        if (isActiveRef.current && nextVideoSrc) {
+          preloadNextVideo()
         }
-        if (mp4Link?.parentNode) {
-          mp4Link.parentNode.removeChild(mp4Link)
-        }
-        nextVideoRef.current = null
+      }, 500 - activeDuration)
+      
+      return () => {
+        window.clearTimeout(preloadTimer)
       }
     }
+    
+    // Section has been active > 500ms, preload immediately
+    preloadNextVideo()
+    
+    return () => {
+      // Cleanup - reset preload flag
+      nextVideoRef.current = false
+    }
   }, [isActive, nextVideoSrc, isLast])
+  
+  const preloadNextVideo = useCallback(() => {
+    if (!nextVideoSrc || nextVideoRef.current) return // Already preloading or no next video
+    
+    // Use requestIdleCallback for non-critical preloading
+    const preloadInIdle = (deadline?: IdleDeadline) => {
+      if (deadline && deadline.timeRemaining() < 5) {
+        // Not enough time, schedule for next idle period
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(preloadInIdle)
+        } else {
+          // Fallback for browsers without requestIdleCallback
+          setTimeout(preloadInIdle, 100)
+        }
+        return
+      }
+      
+      // Preload next video for smooth transitions
+      // Using fetch() instead of <link rel="preload"> with 'as="video"' 
+      // because some browsers don't support 'as="video"' for preload
+      if (typeof fetch !== 'undefined') {
+        // Prefetch videos in background using HEAD requests
+        fetch(nextVideoSrc, { method: 'HEAD' } as RequestInit).catch(() => {})
+        fetch(nextVideoSrc.replace('.webm', '.mp4'), { method: 'HEAD' } as RequestInit).catch(() => {})
+      }
+
+      // Mark as preloading
+      nextVideoRef.current = true
+    }
+    
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(preloadInIdle)
+    } else {
+      // Fallback: preload immediately if requestIdleCallback not available
+      preloadInIdle()
+    }
+  }, [nextVideoSrc])
 
   const sectionClasses = [
     styles.videoSection,
@@ -244,6 +293,7 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
       data-video-ready={isVideoReady}
       data-is-next={isNext ? 'true' : 'false'}
       data-is-prev={isPrev ? 'true' : 'false'}
+      data-is-last={isLast ? 'true' : 'false'}
     >
       <video
         ref={videoRef}
@@ -262,7 +312,17 @@ const VideoSection = forwardRef<HTMLElement, VideoSectionProps>(function VideoSe
         {posterSrc && <img src={posterSrc} alt={`Фон: ${title}`} className={styles.videoPoster} />}
       </video>
 
-      <h2 id={`caption-${index}`} className={styles.videoCaption}>
+      <h2 
+        id={`caption-${index}`} 
+        className={styles.videoCaption}
+        style={{
+          opacity: showCaption ? 1 : 0,
+          transform: showCaption 
+            ? 'translate3d(-50%, 0, 0)' 
+            : 'translate3d(-50%, 30px, 0)',
+          transition: 'opacity 0.8s ease, transform 0.6s ease',
+        }}
+      >
         {title}
       </h2>
 

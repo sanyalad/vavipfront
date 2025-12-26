@@ -1,6 +1,8 @@
 /* ===== Home page ===== */
 .home {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   background: var(--color-bg);
 }
 
@@ -8,138 +10,47 @@
 .videoSectionsWrapper {
   position: relative;
   width: 100%;
-  min-height: 100vh;
-  min-height: 100svh;
-  min-height: 100dvh;
-  --peek-height: 0px;
-  --gesture-progress: 0;
-  overflow: hidden;
-  /* Allow native vertical panning at the edges; we preventDefault during custom gestures */
-  touch-action: pan-y;
-  overscroll-behavior: none;
-  isolation: isolate;
-  /* PERF: Изоляция контекста для лучшей производительности */
-  contain: layout style paint;
-  border: none;
-  outline: none;
+  height: 100%;
 }
 
-.released {
-  height: auto;
-  min-height: 100vh;
-  overflow: visible;
-  /* Возвращаем нативный скролл, когда отпустили */
-  touch-action: auto;
-}
-
-.released .videoSection {
-  position: relative;
-  transform: none !important;
-  opacity: 1 !important;
-  pointer-events: auto;
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100svh;
-  min-height: 100dvh;
-  z-index: 1;
-}
-
-
-/* ===== Каталог и футер после стека ===== */
-/* Footer overlay drawer (opens above the 4th section) */
-.footerBackdrop {
+/* ===== Progress bar ===== */
+.progressBar {
   position: fixed;
-  inset: 0;
-  z-index: 1250;
-  background: rgba(0, 0, 0, 0.55);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.footerBackdrop[data-visible="true"] {
-  opacity: var(--footer-progress, 0);
-  pointer-events: auto;
-}
-
-.footerBackdrop[data-gesture="true"] {
-  transition: none;
-}
-
-.footerDrawer {
-  position: fixed;
+  top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1260;
-  height: 40vh;
-  max-height: 40vh;
-  transform: translate3d(0, calc((1 - var(--footer-progress, 0)) * 100%), 0);
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  background: var(--color-bg);
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  pointer-events: none;
-  border-radius: 0;
-  border: none;
-  will-change: transform;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  transition: width 0.5s ease-out;
+  z-index: 100;
 }
 
-.footerDrawer[data-visible="true"] {
-  pointer-events: auto;
+/* ===== Section counter ===== */
+.sectionCounter {
+  position: fixed;
+  bottom: 12px; /* Центрирован в нижнем отступе 24px (12px = половина отступа) */
+  left: clamp(20px, 2vw, 30px); /* В одной оси с headerLeft (padding header) */
+  color: rgba(255, 255, 255, 0.6); /* text-primary-foreground/60 */
+  font-size: 14px; /* text-sm */
+  font-family: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; /* font-mono */
+  z-index: 100;
 }
 
-.footerDrawer[data-gesture="true"] {
-  transition: none;
+.currentIndex {
+  color: #fff; /* text-primary-foreground */
+  font-weight: bold;
 }
 
-/* Tablet optimizations */
-@media (min-width: 768px) and (max-width: 1024px) {
-  .footerDrawer {
-    height: clamp(35vh, 40vh, 45vh);
-    max-height: clamp(35vh, 40vh, 45vh);
-  }
-}
-
-@media (max-width: 900px) {
-  .footerDrawer {
-    height: 40vh;
-    max-height: 40vh;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 0;
-  }
-}
-
-@media (max-width: 719px) {
-  .footerDrawer {
-    height: 100vh;
-    height: 100dvh;
-    max-height: 100vh;
-    max-height: 100dvh;
-    border-radius: 0;
-    /* Отключаем backdrop-filter на мобильных для производительности */
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-/* Fallback для устройств без поддержки backdrop-filter */
-@supports not (backdrop-filter: blur(12px)) {
-  .footerDrawer {
-    background: rgba(10, 10, 10, 0.95);
-  }
+.separator {
+  margin: 0 8px; /* mx-2 = 0.5rem = 8px */
 }
 
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
   .videoSectionsWrapper section {
     will-change: auto;
+  }
+  
+  .progressBar {
+    transition: none;
   }
 }

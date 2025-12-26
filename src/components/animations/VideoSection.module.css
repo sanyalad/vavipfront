@@ -2,185 +2,28 @@
 .videoSection {
   position: absolute;
   inset: 0;
-  width: 100vw;
-  min-height: 100vh;
-  min-height: 100svh;
-  min-height: 100dvh;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   overflow: hidden;
-  /* GPU-ускорение */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-  /* Плавные transitions */
-  transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   background: transparent;
   box-shadow: none;
-  z-index: 1;
   border: none;
   outline: none;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.videoSection:first-of-type {
-  box-shadow: none;
-}
-
-.videoSection[data-state="prev"] {
-  /* Старт выше экрана */
-  transform: translateY(-100%) translateZ(0);
   opacity: 1;
-  visibility: hidden;
-  pointer-events: none;
-  z-index: 0 !important;
-  box-shadow: none;
-  filter: none;
-}
-
-.videoSection[data-state="next"] {
-  /* Старт ниже экрана */
-  transform: translateY(100%) translateZ(0);
-  opacity: 1;
-  visibility: hidden;
-  pointer-events: none;
-  z-index: 0;
-  filter: none;
-  box-shadow: none;
-  will-change: transform;
-}
-
-.videoSection[data-state="idle"] {
-  /* Секции, которые не являются next/prev/active - полностью скрыты, без сдвигов */
-  transform: translateY(0) scale(1) translateZ(0);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  z-index: 0 !important;
-  filter: none;
-  box-shadow: none;
-  /* КРИТИЧНО: Освобождаем ресурсы GPU */
-  will-change: auto;
-  /* PERF: Изоляция контекста для неактивных секций */
-  contain: strict;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .videoSection.active,
 .videoSection[data-state="active"] {
-  transform: translateY(0) scale(1) translateZ(0);
   opacity: 1;
   pointer-events: auto;
-  z-index: 3;
   background: #000;
-  box-shadow: none;
   visibility: visible;
-  will-change: auto;
-  transition:
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-[data-direction="next"] .videoSection[data-state="next"] {
-  /* Выезжает снизу вверх до финальной позиции */
-  transform: translateY(0) scale(1) translateZ(0);
-  z-index: 5;
-  opacity: 1;
-  visibility: visible;
-  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.35);
-  filter: none;
-  pointer-events: none;
-  transition: none;
-  animation: deckSlideUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-[data-direction="next"] .videoSection[data-state="prev"] {
-  /* Текущая (бывшая активная) остаётся на месте, пока следующая выезжает */
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
-  z-index: 1 !important;
-  pointer-events: none;
-  box-shadow: none;
-  filter: none;
-}
-
-/* Простые keyframes без лишних фаз - секции всегда непрозрачны */
-@keyframes deckSlideUp {
-  0% {
-    transform: translateY(100%) scale(1) translateZ(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) scale(1) translateZ(0);
-    opacity: 1;
-  }
-}
-
-/* Сохраняем яркость текущей секции до завершения анимации вниз */
-[data-direction="next"] .videoSection[data-state="prev"] video {
-  filter: brightness(1);
-}
-
-[data-direction="prev"] .videoSection[data-state="prev"] {
-  /* Выезжает сверху вниз - падает поверх текущей */
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1) translateZ(0);
-  z-index: 6 !important;
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-  transition: none;
-  animation: deckSlideDown 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-/* Простые keyframes без лишних фаз - секции всегда непрозрачны */
-@keyframes deckSlideDown {
-  0% {
-    transform: translateY(-100%) scale(1) translateZ(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) scale(1) translateZ(0);
-    opacity: 1;
-  }
-}
-
-/* При пролистывании вверх текущая активная ОСТАЕТСЯ НА МЕСТЕ (верхняя падает поверх) */
-[data-direction="prev"] .videoSection[data-state="next"] {
-  opacity: 1;
-  visibility: visible;
-  /* Остается на месте, пока верхняя падает поверх */
-  transform: translateY(0) scale(1) translateZ(0);
-  z-index: 1 !important;
-  pointer-events: none;
-  box-shadow: none;
-  /* Плавный fade-out */
-  transition: opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-/* Убеждаемся что секции в idle не показываются даже при direction */
-[data-direction="next"] .videoSection[data-state="idle"],
-[data-direction="prev"] .videoSection[data-state="idle"] {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  /* Держим на месте, чтобы предыдущая не уезжала */
-  transform: translateY(0) scale(1) !important;
-}
-
-/* В idle показываем только active */
-[data-direction="idle"] .videoSection[data-state="next"],
-[data-direction="idle"] .videoSection[data-state="prev"] {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(100%) scale(1);
-}
-
-/* Peek-область отключена для избавления от артефактов */
-.videoSection::after {
-  content: none;
 }
 
 /* ===== Видео внутри секций ===== */
@@ -232,7 +75,6 @@
   position: absolute;
   bottom: 90px;
   left: 50%;
-  transform: translate(-50%, 50px) translateZ(0);
   font-family: 'Gotham', Helvetica, Arial, sans-serif;
   font-weight: 300;
   font-size: clamp(1.5rem, 4vw, 2.5rem);
@@ -241,88 +83,14 @@
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
   pointer-events: none;
   white-space: nowrap;
-  opacity: 0;
-  filter: blur(10px);
   will-change: transform, opacity;
   backface-visibility: hidden;
-  transition:
-    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.videoSection.active .videoCaption,
-.videoSection[data-state="active"] .videoCaption {
-  opacity: 1;
-  transform: translate(-50%, 0) translateZ(0);
-  filter: blur(0);
-  /* Оптимальный delay для плавного появления */
-  transition-delay: 0.15s;
-}
-
-.videoSection[data-state="prev"] .videoCaption {
+  /* Inline styles from React state will control opacity and transform */
   opacity: 0;
-  transform: translate(-50%, -30px);
-  filter: blur(6px);
+  transform: translate3d(-50%, 30px, 0);
 }
 
-.videoSection[data-state="next"] .videoCaption {
-  opacity: 0;
-  filter: blur(8px);
-}
-
-/* CRITICAL: Active section should show caption even if it's also "next" during animation */
-.videoSection[data-state="active"] .videoCaption {
-  opacity: 1 !important;
-  transform: translate(-50%, 0) !important;
-  filter: blur(0) !important;
-}
-
-/* During deck movement we keep NON-active captions hidden,
-   BUT allow the incoming section's caption to be visible immediately (no lag). */
-[data-direction="next"] .videoSection:not([data-state="active"]):not([data-state="next"]) .videoCaption,
-[data-direction="prev"] .videoSection:not([data-state="active"]):not([data-state="prev"]) .videoCaption,
-[data-gesture="true"] .videoSection:not([data-state="active"]):not([data-state="next"]):not([data-state="prev"]) .videoCaption {
-  opacity: 0 !important;
-  transform: translate(-50%, 22px) !important;
-  filter: blur(10px) !important;
-  transition-delay: 0s !important;
-}
-
-/* Incoming caption should appear ONLY after animation completes */
-/* During gesture/animation, keep captions hidden to prevent artifacts */
-[data-gesture="true"] .videoSection[data-state="next"] .videoCaption,
-[data-gesture="true"] .videoSection[data-state="prev"] .videoCaption,
-[data-animating="true"] .videoSection[data-state="next"] .videoCaption,
-[data-animating="true"] .videoSection[data-state="prev"] .videoCaption {
-  opacity: 0 !important;
-  transform: translate(-50%, 22px) !important;
-  filter: blur(10px) !important;
-  transition-delay: 0s !important;
-}
-
-/* Show caption only after animation completes (data-animating="false") */
-[data-animating="false"] .videoSection[data-state="active"] .videoCaption {
-  opacity: 1 !important;
-  transform: translate(-50%, 0) translateZ(0) !important;
-  filter: blur(0) !important;
-  transition-delay: 0.15s !important;
-}
-
-[data-direction="prev"] .videoSection[data-state="prev"] .videoCaption {
-  opacity: 0 !important;
-  transform: translate(-50%, 0) translateZ(0) !important;
-  filter: blur(0) !important;
-  transition-delay: 0s !important;
-}
-/* Активной секции разрешаем показывать подпись даже во время жеста/быстрой анимации */
-[data-gesture="true"] .videoSection[data-state="active"] .videoCaption {
-  opacity: 1 !important;
-  transform: translate(-50%, 0) !important;
-  filter: blur(0) !important;
-  /* PERF: no delay during gesture for instant caption visibility */
-  transition-delay: 0s;
-}
+/* Caption visibility is now controlled by React state (showCaption) via inline styles */
 
 /* ===== Video poster fallback ===== */
 .videoPoster {
@@ -338,17 +106,23 @@
   .videoSection {
     will-change: auto;
     transition: none;
-    transform: none !important;
+    /* GSAP будет управлять transform, не блокируем его */
   }
   
-  .videoCaption,
+  .videoCaption {
+    transition: none;
+    /* GSAP управляет анимацией, но для reduced motion сразу показываем */
+  }
+  
   .videoSection video {
     transition: none;
   }
 
   .videoSection.active .videoCaption,
   .videoSection[data-state="active"] .videoCaption {
-    transition-delay: 0s;
+    opacity: 1;
+    transform: translate(-50%, 0) translateZ(0);
+    filter: blur(0);
   }
 }
 
@@ -361,22 +135,9 @@
     filter: none;
   }
   
-  .videoSection {
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
-    transition-duration: 0.35s;
-    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  
   .videoSection.active .videoCaption,
   .videoSection[data-state="active"] .videoCaption {
     filter: none;
-  }
-  
-  /* На мобильных анимация чуть быстрее */
-  [data-direction="next"] .videoSection[data-state="next"],
-  [data-direction="prev"] .videoSection[data-state="prev"] {
-    animation-duration: 0.45s;
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 
@@ -421,70 +182,3 @@
   }
 }
 
-/* ===== Interactive gesture progress (touch / trackpad) ===== */
-/* The wrapper (`Home.videoSectionsWrapper`) sets:
-   - data-gesture="true|false"
-   - data-direction="next|prev|idle"
-   - CSS var --gesture-progress in [0..1]
-*/
-[data-gesture="true"] .videoSection {
-  transition: none !important;
-  animation: none !important;
-  /* PERF: Enable GPU acceleration and layer isolation during gesture */
-  will-change: transform, opacity !important;
-  contain: layout style paint;
-  /* PERF: Simplify compositing */
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
-[data-gesture="true"][data-direction="next"] .videoSection[data-state="next"] {
-  /* Follow finger/trackpad: from below -> to center */
-  transform: translateY(calc(100% * (1 - var(--gesture-progress)))) translateZ(0) !important;
-  opacity: 1 !important;
-  filter: none !important;
-  visibility: visible !important;
-  z-index: 5 !important;
-  pointer-events: none;
-  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.35);
-}
-
-[data-gesture="true"][data-direction="next"] .videoSection[data-state="prev"] {
-  /* Current stays in place */
-  transform: translateY(0) scale(1) !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 1 !important;
-  pointer-events: none;
-  filter: none !important;
-}
-
-[data-gesture="true"][data-direction="prev"] .videoSection[data-state="prev"] {
-  /* Incoming previous: падает сверху поверх текущей */
-  transform: translateY(calc(-100% * (1 - var(--gesture-progress)))) translateZ(0) !important;
-  opacity: 1 !important;
-  filter: none !important;
-  visibility: visible !important;
-  z-index: 6 !important;
-  pointer-events: none;
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
-}
-
-[data-gesture="true"][data-direction="prev"] .videoSection[data-state="next"] {
-  /* Текущая остается на месте - верхняя падает поверх */
-  transform: translateY(0) scale(1) !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 1 !important;
-  pointer-events: none;
-  filter: none !important;
-}
-
-/* ===== Additional safeguards for idle sections ===== */
-/* Idle sections should never flash during transitions */
-[data-direction="next"] .videoSection[data-state="idle"],
-[data-direction="prev"] .videoSection[data-state="idle"] {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  animation: none !important;
-}

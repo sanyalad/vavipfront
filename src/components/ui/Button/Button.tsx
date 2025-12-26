@@ -3,10 +3,10 @@ import { motion, HTMLMotionProps, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 import styles from './Button.module.css'
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost'
-type ButtonSize = 'sm' | 'md' | 'lg'
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost'
+export type ButtonSize = 'sm' | 'md' | 'lg'
 
-interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'size' | 'children'> {
+export interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'size' | 'children'> {
   variant?: ButtonVariant
   size?: ButtonSize
   isLoading?: boolean
@@ -18,12 +18,19 @@ interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'size' | 'children
   enableRipple?: boolean
 }
 
-// Spring configuration for natural, bouncy animations
+// Optimized spring configuration for better performance
 const springConfig = {
   type: 'spring' as const,
-  stiffness: 400,
-  damping: 25,
-  mass: 0.8,
+  stiffness: 300,
+  damping: 30,
+  mass: 0.5,
+}
+
+// Lightweight transition for hover/tap (no spring physics)
+const quickTransition = {
+  type: 'tween' as const,
+  duration: 0.15,
+  ease: [0.4, 0, 0.2, 1] as const,
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -56,7 +63,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         const y = e.clientY - rect.top
         const id = Date.now()
         
-        setRipples(prev => [...prev, { id, x, y }])
+        setRipples(prev => {
+          // Limit to max 3 ripples at once for performance
+          const newRipples = [...prev, { id, x, y }]
+          return newRipples.slice(-3)
+        })
         
         // Remove ripple after animation
         setTimeout(() => {
@@ -83,19 +94,17 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isDisabled}
         onClick={handleClick}
         whileHover={isDisabled ? {} : { 
-          scale: 1.03,
-          y: -2,
-          boxShadow: variant === 'primary' 
-            ? '0 8px 25px rgba(255, 255, 255, 0.15)' 
-            : '0 8px 20px rgba(0, 0, 0, 0.2)',
+          scale: 1.02,
+          y: -1,
         }}
         whileTap={isDisabled ? {} : { 
-          scale: 0.97, 
+          scale: 0.98, 
           y: 0,
         }}
-        transition={springConfig}
+        transition={quickTransition}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        layout="position"
         {...props}
       >
         {/* Ripple effects */}

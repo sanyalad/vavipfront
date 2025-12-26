@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import styles from './Footer.module.css'
@@ -59,16 +60,73 @@ const containerVariants = {
   },
 }
 
-export default function Footer() {
+interface FooterProps {
+  slideIn?: boolean
+  onClose?: () => void
+  isOpen?: boolean
+}
+
+export default function Footer({ slideIn = false, onClose, isOpen = false }: FooterProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Reset scroll position when footer opens
+  useEffect(() => {
+    if (isOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0
+    }
+  }, [isOpen])
+
+  // Handle internal scroll - prevent propagation when scrolling inside footer
+  useEffect(() => {
+    if (!isOpen) return
+    
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const atTop = scrollTop === 0
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1
+
+      // Allow scroll inside footer
+      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+        // At boundaries - let parent handle (close footer on scroll up at top)
+        if (e.deltaY < 0 && atTop && onClose) {
+          onClose()
+        }
+      } else {
+        // Scrolling inside - stop propagation
+        e.stopPropagation()
+      }
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [isOpen, onClose])
+
   return (
-    <footer className={styles.footer}>
-      <motion.div 
-        className={styles.inner}
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
-        <div className={styles.footerContent}>
+    <>
+      {/* Backdrop */}
+      <div
+        data-footer-backdrop
+        className={styles.backdrop}
+        onClick={onClose}
+      />
+
+        {/* Footer */}
+        <footer 
+          data-footer
+          className={`${styles.footer} ${slideIn ? styles.slideIn : ''} ${isOpen ? styles.drawerOpen : ''}`}
+        >
+          {/* Scroll container */}
+          <div ref={scrollContainerRef} className={styles.scrollContainer}>
+            <motion.div 
+              className={styles.inner}
+              initial="hidden"
+              animate="visible"
+              variants={containerVariants}
+            >
+              <div className={styles.footerContent}>
           <div className={styles.columns} aria-label="Ссылки">
             <motion.div className={styles.column} variants={columnVariants}>
               <motion.strong variants={linkVariants}>КОНФИДЕНЦИАЛЬНОСТЬ И УСЛОВИЯ</motion.strong>
@@ -166,6 +224,8 @@ export default function Footer() {
           </motion.div>
         </div>
       </motion.div>
-    </footer>
-  )
+    </div>
+  </footer>
+      </>
+    )
 }
